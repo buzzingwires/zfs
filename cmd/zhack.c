@@ -485,17 +485,259 @@ zhack_do_feature(int argc, char **argv)
 	return (0);
 }
 
+static boolean_t
+zhack_label_write(int l,
+    int fd,
+    int byteswap,
+    void *data,
+    zio_eck_t *eck,
+    uint64_t offset,
+    uint64_t abdsize)
+{
+	zio_cksum_t verifier;
+	zio_cksum_t actual_cksum;
+	zio_cksum_t expected_cksum;
+	zio_checksum_info_t *ci;
+	abd_t *abd;
+	ssize_t err;
+
+	ZIO_SET_CHECKSUM(&verifier, offset, 0, 0, 0);
+
+	if (byteswap) {
+		byteswap_uint64_array(&verifier, sizeof (zio_cksum_t));
+		eck->zec_magic = BSWAP_64(eck->zec_magic);
+	}
+
+	expected_cksum = eck->zec_cksum;
+	eck->zec_cksum = verifier;
+
+	ci = &zio_checksum_table[ZIO_CHECKSUM_LABEL];
+	abd = abd_get_from_buf(data, abdsize);
+	ci->ci_func[byteswap](abd, abdsize, NULL, &actual_cksum);
+	abd_free(abd);
+
+	if (byteswap)
+		byteswap_uint64_array(&expected_cksum, sizeof (zio_cksum_t));
+
+	if (ZIO_CHECKSUM_EQUAL(actual_cksum, expected_cksum))
+		return (B_FALSE);
+
+	eck->zec_cksum = actual_cksum;
+
+	err = pwrite64(fd, data, abdsize, offset);
+	if (err == -1) {
+		(void) fprintf(stderr, "error: cannot write label %d: %s\n",
+		    l, strerror(errno));
+		return (B_FALSE);
+	} else if (err != abdsize) {
+		(void) fprintf(stderr, "error: bad write size label %d\n", l);
+		return (B_FALSE);
+	} else {
+		(void) fprintf(stderr,
+		    "label %d: wrote %" PRIu64 " bytes at offset %" PRIu64 "\n",
+		    l, abdsize, offset);
+	}
+
+	return (B_TRUE);
+}
+
+#define	ASHIFT_UBERBLOCK_SHIFT(ashift)	\
+	MIN(MAX(ashift, UBERBLOCK_SHIFT), \
+	MAX_UBERBLOCK_SHIFT)
+#define	ASHIFT_UBERBLOCK_SIZE(ashift) \
+	(1ULL << ASHIFT_UBERBLOCK_SHIFT(ashift))
+
+#define	LABEL_SIZE 262144
+
+static void
+zhack_repair_one_label_cksum(const int fd,
+    vdev_label_t * const vl,
+    const uint64_t label_offset,
+    const int l,
+    uint32_t * const labels_repaired)
+{
+	const char *cfg_keys[] = { ZPOOL_CONFIG_VERSION,
+	    ZPOOL_CONFIG_POOL_STATE, ZPOOL_CONFIG_GUID };
+	uberblock_t *ub;
+	uint64_t ashift;
+	int byteswap;
+	zio_eck_t *ub_eck;
+	zio_eck_t *vdev_eck;
+	nvlist_t *cfg;
+	nvlist_t *vdev_tree_cfg;
+	uint64_t txg;
+	char *buf;
+	size_t buflen;
+	void *ub_data;
+	void *vdev_data;
+	ssize_t err;
+
+	ub = (uberblock_t *)vl->vl_uberblock;
+
+	err = pread64(fd, vl, sizeof (vdev_label_t), label_offset);
+	if (err == -1) {
+		(void) fprintf(stderr,
+		    "error: cannot read label %d: %s\n",
+		    l, strerror(errno));
+		return;
+	} else if (err != sizeof (vdev_label_t)) {
+		(void) fprintf(stderr,
+		    "error: bad label %d read size \n", l);
+		return;
+	}
+
+	err = nvlist_unpack(vl->vl_vdev_phys.vp_nvlist,
+	    VDEV_PHYS_SIZE - sizeof (zio_eck_t), &cfg, 0);
+	if (err) {
+		(void) fprintf(stderr,
+		    "error: cannot unpack nvlist label %d\n", l);
+		return;
+	}
+
+	if (ub->ub_txg != 0) {
+		(void) fprintf(stderr,
+		    "error: label %d: UB TXG of 0 expected, but got %"
+		    PRIu64 "\n",
+		    l, ub->ub_txg);
+		return;
+	}
+
+	for (int i = 0; i < ARRAY_SIZE(cfg_keys); i++) {
+		uint64_t val;
+		err = nvlist_lookup_uint64(cfg, cfg_keys[i], &val);
+		if (err) {
+			(void) fprintf(stderr,
+			    "error: label %d, %d: "
+			    "cannot find nvlist key %s\n",
+			    l, i, cfg_keys[i]);
+			return;
+		}
+	}
+
+	err = nvlist_lookup_nvlist(cfg,
+	    ZPOOL_CONFIG_VDEV_TREE, &vdev_tree_cfg);
+	if (err) {
+		(void) fprintf(stderr,
+		    "error: label %d: cannot find nvlist key %s\n",
+		    l, ZPOOL_CONFIG_VDEV_TREE);
+		return;
+	}
+
+	err = nvlist_lookup_uint64(vdev_tree_cfg,
+	    ZPOOL_CONFIG_ASHIFT, &ashift);
+	if (err) {
+		(void) fprintf(stderr,
+		    "error: label %d: cannot find nvlist key %s\n",
+		    l, ZPOOL_CONFIG_ASHIFT);
+		return;
+	}
+
+	if (ashift == 0) {
+		(void) fprintf(stderr,
+		    "error: label %d: nvlist key %s is zero\n",
+		    l, ZPOOL_CONFIG_ASHIFT);
+		return;
+	}
+
+	if (ub->ub_rootbp.blk_birth != 0) {
+		txg = ub->ub_rootbp.blk_birth;
+		ub->ub_txg = txg;
+
+		if (nvlist_remove_all(cfg, ZPOOL_CONFIG_CREATE_TXG) != 0) {
+			(void) fprintf(stderr,
+			    "error: label %d: "
+			    "Failed to remove pool creation TXG\n",
+			    l);
+			return;
+		}
+
+		if (nvlist_remove_all(cfg, ZPOOL_CONFIG_POOL_TXG) != 0) {
+			(void) fprintf(stderr,
+			    "error: label %d: Failed to remove pool TXG\n",
+			    l);
+			return;
+		}
+
+		if (nvlist_add_uint64(cfg, ZPOOL_CONFIG_POOL_TXG, txg) != 0) {
+			(void) fprintf(stderr,
+			    "error: label %d: "
+			    "Failed to add pool TXG of %" PRIu64 "\n",
+			    l, txg);
+			return;
+		}
+	}
+
+	buf = vl->vl_vdev_phys.vp_nvlist;
+	buflen = VDEV_PHYS_SIZE - sizeof (zio_eck_t);
+
+	if (nvlist_pack(cfg, &buf, &buflen, NV_ENCODE_XDR, 0) != 0) {
+		(void) fprintf(stderr,
+		    "error: label %d: Failed to pack nvlist\n",
+		    l);
+		return;
+	}
+
+	ub_data = (char *)vl + offsetof(vdev_label_t, vl_uberblock);
+	ub_eck =
+	    (zio_eck_t *)
+	    ((char *)(ub_data) + (ASHIFT_UBERBLOCK_SIZE(ashift))) - 1;
+
+	if (ub_eck->zec_magic != 0) {
+		(void) fprintf(stderr,
+		    "error: label %d: "
+		    "Expected Uberblock checksum magic number to "
+		    "be 0, but got %" PRIu64 "\n",
+		    l, ub_eck->zec_magic);
+		return;
+	}
+
+	ub_eck->zec_magic = ZEC_MAGIC;
+
+	vdev_data = (char *)vl + offsetof(vdev_label_t, vl_vdev_phys);
+	vdev_eck =
+	    (zio_eck_t *)((char *)(vdev_data) + VDEV_PHYS_SIZE) - 1;
+
+	if (vdev_eck->zec_magic == 0) {
+		(void) fprintf(stderr, "error: label %d: "
+		    "Expected "
+		    "the nvlist checksum magic number to not be zero\n",
+		    l);
+		return;
+	}
+
+	byteswap =
+	    (vdev_eck->zec_magic == BSWAP_64((uint64_t)ZEC_MAGIC));
+
+	(void) fprintf(stderr, "Label %d: "
+	    "byteswap returned %d for the uberblock magic of %"
+	    PRIu64 " and the swapped default of %" PRIu64 "\n",
+	    l, byteswap, ub->ub_magic,
+	    BSWAP_64((uint64_t)UBERBLOCK_MAGIC));
+
+	if (zhack_label_write(l, fd, byteswap,
+	    ub_data, ub_eck,
+	    label_offset + offsetof(vdev_label_t, vl_uberblock),
+	    ASHIFT_UBERBLOCK_SIZE(ashift)))
+			labels_repaired[l] |= (1 << 0);
+
+	if (zhack_label_write(l, fd, byteswap,
+	    vdev_data, vdev_eck,
+	    label_offset + offsetof(vdev_label_t, vl_vdev_phys),
+	    VDEV_PHYS_SIZE))
+			labels_repaired[l] |= (1 << 1);
+
+	fsync(fd);
+}
+
 static int
 zhack_repair_label_cksum(int argc, char **argv)
 {
-	zio_checksum_info_t *ci = &zio_checksum_table[ZIO_CHECKSUM_LABEL];
-	const char *cfg_keys[] = { ZPOOL_CONFIG_VERSION,
-	    ZPOOL_CONFIG_POOL_STATE, ZPOOL_CONFIG_GUID };
-	boolean_t labels_repaired[VDEV_LABELS] = {0};
-	boolean_t repaired = B_FALSE;
+	uint32_t labels_repaired[VDEV_LABELS] = {0};
 	vdev_label_t labels[VDEV_LABELS] = {{{0}}};
-	struct stat st;
+	struct stat64 st;
 	int fd;
+	off_t filesize;
+	uint32_t repaired = 0;
 
 	abd_init();
 
@@ -511,106 +753,44 @@ zhack_repair_label_cksum(int argc, char **argv)
 		fatal(NULL, FTAG, "cannot open '%s': %s", argv[0],
 		    strerror(errno));
 
-	if (stat(argv[0], &st) != 0)
+	if (fstat64_blk(fd, &st) != 0)
 		fatal(NULL, FTAG, "cannot stat '%s': %s", argv[0],
 		    strerror(errno));
 
+	filesize = st.st_size;
+	(void) fprintf(stderr, "Calculated filesize to be %jd\n",
+	    (intmax_t)filesize);
+
+	if (filesize % LABEL_SIZE != 0) {
+		filesize = (filesize / LABEL_SIZE) * LABEL_SIZE;
+		(void) fprintf(stderr,
+		    "Filesize is not divisible by %jd, recalculated to %jd\n",
+		    (intmax_t)LABEL_SIZE, (intmax_t)filesize);
+	}
+
 	for (int l = 0; l < VDEV_LABELS; l++) {
-		uint64_t label_offset, offset;
-		zio_cksum_t expected_cksum;
-		zio_cksum_t actual_cksum;
-		zio_cksum_t verifier;
-		zio_eck_t *eck;
-		nvlist_t *cfg;
-		int byteswap;
-		uint64_t val;
-		ssize_t err;
-
-		vdev_label_t *vl = &labels[l];
-
-		label_offset = vdev_label_offset(st.st_size, l, 0);
-		err = pread64(fd, vl, sizeof (vdev_label_t), label_offset);
-		if (err == -1) {
-			(void) fprintf(stderr, "error: cannot read "
-			    "label %d: %s\n", l, strerror(errno));
-			continue;
-		} else if (err != sizeof (vdev_label_t)) {
-			(void) fprintf(stderr, "error: bad label %d read size "
-			    "\n", l);
-			continue;
-		}
-
-		err = nvlist_unpack(vl->vl_vdev_phys.vp_nvlist,
-		    VDEV_PHYS_SIZE - sizeof (zio_eck_t), &cfg, 0);
-		if (err) {
-			(void) fprintf(stderr, "error: cannot unpack nvlist "
-			    "label %d\n", l);
-			continue;
-		}
-
-		for (int i = 0; i < ARRAY_SIZE(cfg_keys); i++) {
-			err = nvlist_lookup_uint64(cfg, cfg_keys[i], &val);
-			if (err) {
-				(void) fprintf(stderr, "error: label %d: "
-				    "cannot find nvlist key %s\n",
-				    l, cfg_keys[i]);
-				continue;
-			}
-		}
-
-		void *data = (char *)vl + offsetof(vdev_label_t, vl_vdev_phys);
-		eck = (zio_eck_t *)((char *)(data) + VDEV_PHYS_SIZE) - 1;
-
-		offset = label_offset + offsetof(vdev_label_t, vl_vdev_phys);
-		ZIO_SET_CHECKSUM(&verifier, offset, 0, 0, 0);
-
-		byteswap = (eck->zec_magic == BSWAP_64(ZEC_MAGIC));
-		if (byteswap)
-			byteswap_uint64_array(&verifier, sizeof (zio_cksum_t));
-
-		expected_cksum = eck->zec_cksum;
-		eck->zec_cksum = verifier;
-
-		abd_t *abd = abd_get_from_buf(data, VDEV_PHYS_SIZE);
-		ci->ci_func[byteswap](abd, VDEV_PHYS_SIZE, NULL, &actual_cksum);
-		abd_free(abd);
-
-		if (byteswap)
-			byteswap_uint64_array(&expected_cksum,
-			    sizeof (zio_cksum_t));
-
-		if (ZIO_CHECKSUM_EQUAL(actual_cksum, expected_cksum))
-			continue;
-
-		eck->zec_cksum = actual_cksum;
-
-		err = pwrite64(fd, data, VDEV_PHYS_SIZE, offset);
-		if (err == -1) {
-			(void) fprintf(stderr, "error: cannot write "
-			    "label %d: %s\n", l, strerror(errno));
-			continue;
-		} else if (err != VDEV_PHYS_SIZE) {
-			(void) fprintf(stderr, "error: bad write size "
-			    "label %d\n", l);
-			continue;
-		}
-
-		fsync(fd);
-
-		labels_repaired[l] = B_TRUE;
+		zhack_repair_one_label_cksum(fd,
+		    &labels[l],
+		    vdev_label_offset(filesize, l, 0),
+		    l,
+		    labels_repaired);
 	}
 
 	close(fd);
 
 	abd_fini();
 
+#define	LABEL_STATUS(s)	(((labels_repaired[l] & (1 << (s))) != 0) ?\
+	    "repaired" : "skipped")
 	for (int l = 0; l < VDEV_LABELS; l++) {
-		(void) printf("label %d: %s\n", l,
-		    labels_repaired[l] ? "repaired" : "skipped");
+		printf("label %d: ", l);
+		(void) printf("uberblock: %s ", LABEL_STATUS(0));
+		(void) printf("checksum: %s\n", LABEL_STATUS(1));
 		repaired |= labels_repaired[l];
 	}
+#undef LABEL_STATUS
 
-	if (repaired)
+	if (repaired > 0)
 		return (0);
 
 	return (1);
