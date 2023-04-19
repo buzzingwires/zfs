@@ -1,0 +1,208 @@
+#!/bin/ksh
+
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+#
+
+#
+# Copyright (c) 2021 by vStack. All rights reserved.
+#
+
+. "$STF_SUITE"/include/libtest.shlib
+. "$STF_SUITE"/include/blkdev.shlib
+
+#
+# Description:
+#
+# Test whether zhack label repair can recover detached devices
+# and corrupted checksums with a variety of sizes.
+#
+# Strategy:
+#
+# Tests are done with virtual disk sizes divisible by 2^18 and not.
+#
+# Test one:
+#
+# 1. Create pool with a file-based vdev
+# 2. Corrupt all labels checksums in the pool
+# 3. Check that pool cannot be imported
+# 4. Use zhack to repair labels checksums in the pool
+# 5. Check that pool can be imported and that data is intact
+#
+# Test two:
+#
+# 1. Create pool with a file-based mirror vdev with some test data
+# 2. Detach either device from the mirror
+# 3. Export the pool
+# 4. Delete the non-detached device
+# 5. Verify that the remaining detached device cannot be imported
+# 6. Use zhack to repair checksums and uberblocks in the pool
+# 7. Verify that the detached device can be imported and that data is intact
+#
+# Test three is the same as test two, but also corrupts the detached device
+# from step two.
+#
+
+log_assert "Verify zhack label repair <vdev> will repair labels checksums and uberblocks"
+log_onexit cleanup
+
+VIRTUAL_DISK=$TEST_BASE_DIR/disk
+VIRTUAL_MIRROR_DISK=$TEST_BASE_DIR/mirrodisk
+
+MINVDEVSIZE_ODD="$((MINVDEVSIZE + 1))"
+
+function cleanup
+{
+	poolexists "$TESTPOOL" && destroy_pool "$TESTPOOL"
+	[[ -f "$VIRTUAL_DISK" ]] && log_must rm "$VIRTUAL_DISK"
+	[[ -f "$VIRTUAL_MIRROR_DISK" ]] && log_must rm "$VIRTUAL_MIRROR_DISK"
+}
+
+function get_size_evenness
+{
+	L_SIZE="$1"
+
+	if [ "$((L_SIZE % 2**18))" -eq 0 ]
+	then
+		echo "even"
+	else
+		echo "uneven"
+	fi
+}
+
+function check_dataset
+{
+	log_must mounted "$TESTPOOL"/"$TESTFS"
+
+	log_must test -f "$TESTDIR"/"test"
+}
+
+function setup_dataset
+{
+	log_must zfs create "$TESTPOOL"/"$TESTFS"
+
+	log_must mkdir -p "$TESTDIR"
+	log_must zfs set mountpoint="$TESTDIR" "$TESTPOOL"/"$TESTFS"
+
+	log_must mounted "$TESTPOOL"/"$TESTFS"
+
+	log_must touch "$TESTDIR"/"test"
+	log_must test -f "$TESTDIR"/"test"
+
+	log_must zpool sync "$TESTPOOL"
+
+	check_dataset
+}
+
+function corrupt_labels
+{
+	L_DISK="$1"
+
+	corrupt_label_checksum 0 "$L_DISK"
+	corrupt_label_checksum 1 "$L_DISK"
+	corrupt_label_checksum 2 "$L_DISK"
+	corrupt_label_checksum 3 "$L_DISK"
+}
+
+function try_import_and_repair
+{
+	L_POOLDISK="$1"
+
+	log_mustnot zpool import "$TESTPOOL" -d "$TEST_BASE_DIR"
+
+	log_must zhack label repair "$L_POOLDISK"
+
+	log_must zpool import "$TESTPOOL" -d "$TEST_BASE_DIR"
+}
+
+function run_test_one
+{
+	L_SIZE="$1"
+
+	log_must truncate -s "$L_SIZE" "$VIRTUAL_DISK"
+
+	log_must zpool create "$TESTPOOL" "$VIRTUAL_DISK"
+
+	setup_dataset
+
+	log_must zpool export "$TESTPOOL"
+
+	corrupt_labels "$VIRTUAL_DISK"
+
+	try_import_and_repair "$VIRTUAL_DISK"
+
+	check_dataset
+
+	cleanup
+
+	log_pass "zhack label repair corruption test passed with $(get_size_evenness "$L_SIZE") size."
+}
+
+function make_mirrored_pool
+{
+	L_SIZE="$1"
+
+	log_must truncate -s "$L_SIZE" "$VIRTUAL_DISK"
+	log_must truncate -s "$L_SIZE" "$VIRTUAL_MIRROR_DISK"
+
+	log_must zpool create "$TESTPOOL" "$VIRTUAL_DISK"
+	log_must zpool attach "$TESTPOOL" "$VIRTUAL_DISK" "$VIRTUAL_MIRROR_DISK"
+}
+
+function export_and_delete_vdisk
+{
+	log_must zpool export "$TESTPOOL"
+
+	log_must rm "$VIRTUAL_DISK"
+}
+
+function run_test_two
+{
+	L_SIZE="$1"
+
+	make_mirrored_pool "$L_SIZE"
+
+	setup_dataset
+
+	log_must zpool detach "$TESTPOOL" "$VIRTUAL_MIRROR_DISK"
+
+	export_and_delete_vdisk
+
+	try_import_and_repair "$VIRTUAL_MIRROR_DISK"
+
+	check_dataset
+
+	cleanup
+
+	log_pass "zhack label repair detached recovery test passed with $(get_size_evenness "$L_SIZE") size."
+}
+
+function run_test_three
+{
+	L_SIZE="$1"
+
+	make_mirrored_pool "$L_SIZE"
+
+	setup_dataset
+
+	log_must zpool detach "$TESTPOOL" "$VIRTUAL_MIRROR_DISK"
+
+	corrupt_labels "$VIRTUAL_MIRROR_DISK"
+
+	export_and_delete_vdisk
+
+	try_import_and_repair "$VIRTUAL_MIRROR_DISK"
+
+	check_dataset
+
+	cleanup
+
+	log_pass "zhack label repair corrupted and detached recovery test passed with $(get_size_evenness "$L_SIZE") size."
+}
