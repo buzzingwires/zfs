@@ -26,7 +26,7 @@
 #
 # Strategy:
 #
-# Tests are done with virtual disk sizes divisible by 2^18 and not.
+# Tests are done on loopback devices with sizes divisible by 2^18 and sizes that are not.
 #
 # Test one:
 #
@@ -56,11 +56,33 @@ log_onexit cleanup
 VIRTUAL_DISK=$TEST_BASE_DIR/disk
 VIRTUAL_MIRROR_DISK=$TEST_BASE_DIR/mirrodisk
 
+VIRTUAL_DEVICE=
+VIRTUAL_MIRROR_DEVICE=
+
 export MINVDEVSIZE_ODD="$((MINVDEVSIZE + 1))"
+
+function cleanup_lo
+{
+	L_DEVICE="$1"
+
+	if [[ -e $L_DEVICE ]]; then
+		if is_linux; then
+			log_must losetup -d "$L_DEVICE"
+		elif is_freebsd; then
+			log_must mdconfig -d -u "$L_DEVICE"
+		else
+			log_must lofiadm -d "$L_DEVICE"
+		fi
+	fi
+}
 
 function cleanup
 {
 	poolexists "$TESTPOOL" && destroy_pool "$TESTPOOL"
+	cleanup_lo "$VIRTUAL_DEVICE"
+	cleanup_lo "$VIRTUAL_MIRROR_DEVICE"
+	VIRTUAL_DEVICE=
+	VIRTUAL_MIRROR_DEVICE=
 	[[ -f "$VIRTUAL_DISK" ]] && log_must rm "$VIRTUAL_DISK"
 	[[ -f "$VIRTUAL_MIRROR_DISK" ]] && log_must rm "$VIRTUAL_MIRROR_DISK"
 }
@@ -115,20 +137,39 @@ function try_import_and_repair
 {
 	L_POOLDISK="$1"
 
-	log_mustnot zpool import "$TESTPOOL" -d "$TEST_BASE_DIR"
+	log_mustnot zpool import "$TESTPOOL" -d "$L_POOLDISK"
 
 	log_must zhack label repair "$L_POOLDISK"
 
-	log_must zpool import "$TESTPOOL" -d "$TEST_BASE_DIR"
+	log_must zpool import "$TESTPOOL" -d "$L_POOLDISK"
+}
+
+function prepare_vdev
+{
+	L_SIZE="$1"
+	L_BACKFILE="$2"
+
+	l_devname=
+	if truncate -s "$L_SIZE" "$L_BACKFILE"; then
+		if is_linux; then
+			l_devname="$(losetup -f "$L_BACKFILE" --show)"
+		elif is_freebsd; then
+			l_devname=/dev/"$(mdconfig -a -t vnode -f "$L_BACKFILE")"
+		else
+			l_devname="$(lofiadm -a "$L_BACKFILE")"
+		fi
+	fi
+	echo "$l_devname"
 }
 
 function run_test_one
 {
 	L_SIZE="$1"
 
-	log_must truncate -s "$L_SIZE" "$VIRTUAL_DISK"
+	VIRTUAL_DEVICE="$(prepare_vdev "$L_SIZE" "$VIRTUAL_DISK")"
+	log_must test -e "$VIRTUAL_DEVICE"
 
-	log_must zpool create "$TESTPOOL" "$VIRTUAL_DISK"
+	log_must zpool create "$TESTPOOL" "$VIRTUAL_DEVICE"
 
 	setup_dataset
 
@@ -136,7 +177,7 @@ function run_test_one
 
 	corrupt_labels "$VIRTUAL_DISK"
 
-	try_import_and_repair "$VIRTUAL_DISK"
+	try_import_and_repair "$VIRTUAL_DEVICE"
 
 	check_dataset
 
@@ -149,16 +190,22 @@ function make_mirrored_pool
 {
 	L_SIZE="$1"
 
-	log_must truncate -s "$L_SIZE" "$VIRTUAL_DISK"
-	log_must truncate -s "$L_SIZE" "$VIRTUAL_MIRROR_DISK"
+	VIRTUAL_DEVICE="$(prepare_vdev "$L_SIZE" "$VIRTUAL_DISK")"
+	log_must test -e "$VIRTUAL_DEVICE"
+	VIRTUAL_MIRROR_DEVICE="$(prepare_vdev "$L_SIZE" "$VIRTUAL_MIRROR_DISK")"
+	log_must test -e "$VIRTUAL_MIRROR_DEVICE"
 
-	log_must zpool create "$TESTPOOL" "$VIRTUAL_DISK"
-	log_must zpool attach "$TESTPOOL" "$VIRTUAL_DISK" "$VIRTUAL_MIRROR_DISK"
+	log_must zpool create "$TESTPOOL" "$VIRTUAL_DEVICE"
+	log_must zpool attach "$TESTPOOL" "$VIRTUAL_DEVICE" "$VIRTUAL_MIRROR_DEVICE"
 }
 
-function export_and_delete_vdisk
+function export_and_cleanup_vdisk
 {
 	log_must zpool export "$TESTPOOL"
+
+	cleanup_lo "$VIRTUAL_DEVICE"
+
+	VIRTUAL_DEVICE=
 
 	log_must rm "$VIRTUAL_DISK"
 }
@@ -171,11 +218,11 @@ function run_test_two
 
 	setup_dataset
 
-	log_must zpool detach "$TESTPOOL" "$VIRTUAL_MIRROR_DISK"
+	log_must zpool detach "$TESTPOOL" "$VIRTUAL_MIRROR_DEVICE"
 
-	export_and_delete_vdisk
+	export_and_cleanup_vdisk
 
-	try_import_and_repair "$VIRTUAL_MIRROR_DISK"
+	try_import_and_repair "$VIRTUAL_MIRROR_DEVICE"
 
 	check_dataset
 
@@ -192,13 +239,13 @@ function run_test_three
 
 	setup_dataset
 
-	log_must zpool detach "$TESTPOOL" "$VIRTUAL_MIRROR_DISK"
+	log_must zpool detach "$TESTPOOL" "$VIRTUAL_MIRROR_DEVICE"
 
 	corrupt_labels "$VIRTUAL_MIRROR_DISK"
 
-	export_and_delete_vdisk
+	export_and_cleanup_vdisk
 
-	try_import_and_repair "$VIRTUAL_MIRROR_DISK"
+	try_import_and_repair "$VIRTUAL_MIRROR_DEVICE"
 
 	check_dataset
 
