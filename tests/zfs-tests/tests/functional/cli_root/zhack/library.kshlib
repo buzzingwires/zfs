@@ -56,7 +56,7 @@ log_onexit cleanup
 VIRTUAL_DISK=$TEST_BASE_DIR/disk
 VIRTUAL_MIRROR_DISK=$TEST_BASE_DIR/mirrodisk
 
-MINVDEVSIZE_ODD="$((MINVDEVSIZE + 1))"
+export MINVDEVSIZE_ODD="$((MINVDEVSIZE + 1))"
 
 function cleanup
 {
