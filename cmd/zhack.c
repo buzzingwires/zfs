@@ -735,7 +735,7 @@ zhack_repair_label_cksum(int argc, char **argv)
 {
 	uint32_t labels_repaired[VDEV_LABELS] = {0};
 	vdev_label_t labels[VDEV_LABELS] = {{{0}}};
-	struct stat st;
+	struct stat64 st;
 	int fd;
 	off_t filesize;
 	uint32_t repaired = 0;
@@ -754,19 +754,11 @@ zhack_repair_label_cksum(int argc, char **argv)
 		fatal(NULL, FTAG, "cannot open '%s': %s", argv[0],
 		    strerror(errno));
 
-	if (stat(argv[0], &st) != 0)
+	if (fstat64_blk(fd, &st) != 0)
 		fatal(NULL, FTAG, "cannot stat '%s': %s", argv[0],
 		    strerror(errno));
 
 	filesize = st.st_size;
-#ifdef BLKGETSIZE
-	if (filesize == 0) {
-		(void) fprintf(stderr,
-		    "Filesize is 0, trying to use BLKGETSIZE64\n");
-		ioctl(fd, BLKGETSIZE64, &filesize);
-	}
-#endif
-
 	(void) fprintf(stderr, "Calculated filesize to be %jd\n",
 	    (intmax_t)filesize);
 
