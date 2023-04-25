@@ -722,6 +722,16 @@ zhack_repair_one_label_cksum(const int fd,
 	fsync(fd);
 }
 
+
+#define	REPAIR_LABEL_STATUS_CKSUM (1 << 0)
+#define	REPAIR_LABEL_STATUS_UB    (1 << 1)
+static const char*
+zhack_repair_label_status(const uint32_t * const label_status,
+    const uint32_t to_check)
+{
+	return (label_status & to_check != 0 ? "repaired" : "skipped");
+}
+
 static int
 zhack_repair_label_cksum(int argc, char **argv)
 {
@@ -771,15 +781,15 @@ zhack_repair_label_cksum(int argc, char **argv)
 
 	abd_fini();
 
-#define	LABEL_STATUS(s)	(((labels_repaired[l] & (1 << (s))) != 0) ?\
-	    "repaired" : "skipped")
 	for (int l = 0; l < VDEV_LABELS; l++) {
+		const uint32_t lr = labels_repaired[l];
 		printf("label %d: ", l);
-		(void) printf("uberblock: %s ", LABEL_STATUS(0));
-		(void) printf("checksum: %s\n", LABEL_STATUS(1));
-		repaired |= labels_repaired[l];
+		(void) printf("uberblock: %s ",
+		    zhack_repair_label_status(lr, REPAIR_LABEL_STATUS_UB));
+		(void) printf("checksum: %s\n",
+		    zhack_repair_label_status(lr, REPAIR_LABEL_STATUS_CKSUM));
+		repaired |= lr;
 	}
-#undef LABEL_STATUS
 
 	if (repaired > 0)
 		return (0);
