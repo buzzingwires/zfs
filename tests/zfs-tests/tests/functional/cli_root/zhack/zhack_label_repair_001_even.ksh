@@ -15,11 +15,12 @@
 #
 # Strategy:
 #
-# 1. Create pool with a file-based vdev
-# 2. Corrupt all labels checksums in the pool
-# 3. Check that pool cannot be imported
-# 4. Use zhack to repair labels checksums in the pool
-# 5. Check that pool can be imported and that data is intact
+# 1. Create pool on a loopback device with some test data
+# 2. Export the pool.
+# 3. Corrupt all label checksums in the pool
+# 4. Check that pool cannot be imported
+# 5. Use zhack to repair label checksums in the pool
+# 6. Check that pool can be imported and that data is intact
 
 . "$STF_SUITE"/tests/functional/cli_root/zhack/library.kshlib
 

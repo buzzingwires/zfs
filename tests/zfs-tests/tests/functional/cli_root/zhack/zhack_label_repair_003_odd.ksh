@@ -15,7 +15,7 @@
 #
 # Strategy:
 #
-# 1. Create pool with a file-based mirror vdev with some test data
+# 1. Create pool on a loopback device with some test data
 # 2. Detach either device from the mirror
 # 3. Corrupt checksums on detached device
 # 4. Export the pool

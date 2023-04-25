@@ -15,7 +15,7 @@
 #
 # Strategy:
 #
-# 1. Create pool with a file-based mirror vdev with some test data
+# 1. Create pool on a loopback device with some test data
 # 2. Detach either device from the mirror
 # 3. Export the pool
 # 4. Delete the non-detached device

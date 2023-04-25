@@ -26,19 +26,20 @@
 #
 # Strategy:
 #
-# Tests are done on loopback devices with sizes divisible by 2^18 and sizes that are not.
+# Tests are done on loopback devices with sizes divisible by label size and sizes that are not.
 #
 # Test one:
 #
-# 1. Create pool with a file-based vdev
-# 2. Corrupt all labels checksums in the pool
-# 3. Check that pool cannot be imported
-# 4. Use zhack to repair labels checksums in the pool
-# 5. Check that pool can be imported and that data is intact
+# 1. Create pool on a loopback device with some test data
+# 2. Export the pool.
+# 3. Corrupt all label checksums in the pool
+# 4. Check that pool cannot be imported
+# 5. Use zhack to repair label checksums in the pool
+# 6. Check that pool can be imported and that data is intact
 #
 # Test two:
 #
-# 1. Create pool with a file-based mirror vdev with some test data
+# 1. Create pool on a loopback device with some test data
 # 2. Detach either device from the mirror
 # 3. Export the pool
 # 4. Delete the non-detached device
@@ -50,11 +51,11 @@
 # from step two.
 #
 
-log_assert "Verify zhack label repair <vdev> will repair labels checksums and uberblocks"
+log_assert "Verify zhack label repair <vdev> will repair label checksums and uberblocks"
 log_onexit cleanup
 
 VIRTUAL_DISK=$TEST_BASE_DIR/disk
-VIRTUAL_MIRROR_DISK=$TEST_BASE_DIR/mirrodisk
+VIRTUAL_MIRROR_DISK=$TEST_BASE_DIR/mirrordisk
 
 VIRTUAL_DEVICE=
 VIRTUAL_MIRROR_DEVICE=
