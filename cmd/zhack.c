@@ -486,13 +486,8 @@ zhack_do_feature(int argc, char **argv)
 }
 
 static boolean_t
-zhack_label_write(int l,
-    int fd,
-    int byteswap,
-    void *data,
-    zio_eck_t *eck,
-    uint64_t offset,
-    uint64_t abdsize)
+zhack_repair_label_write(int l, int fd, int byteswap, void *data,
+    zio_eck_t *eck, uint64_t offset, uint64_t abdsize)
 {
 	zio_cksum_t verifier;
 	zio_cksum_t actual_cksum;
@@ -546,8 +541,6 @@ zhack_label_write(int l,
 	MAX_UBERBLOCK_SHIFT)
 #define	ASHIFT_UBERBLOCK_SIZE(ashift) \
 	(1ULL << ASHIFT_UBERBLOCK_SHIFT(ashift))
-
-#define	LABEL_SIZE 262144
 
 static void
 zhack_repair_one_label_cksum(const int fd,
@@ -714,13 +707,13 @@ zhack_repair_one_label_cksum(const int fd,
 	    l, byteswap, ub->ub_magic,
 	    BSWAP_64((uint64_t)UBERBLOCK_MAGIC));
 
-	if (zhack_label_write(l, fd, byteswap,
+	if (zhack_repair_label_write(l, fd, byteswap,
 	    ub_data, ub_eck,
 	    label_offset + offsetof(vdev_label_t, vl_uberblock),
 	    ASHIFT_UBERBLOCK_SIZE(ashift)))
 			labels_repaired[l] |= (1 << 0);
 
-	if (zhack_label_write(l, fd, byteswap,
+	if (zhack_repair_label_write(l, fd, byteswap,
 	    vdev_data, vdev_eck,
 	    label_offset + offsetof(vdev_label_t, vl_vdev_phys),
 	    VDEV_PHYS_SIZE))
@@ -761,11 +754,9 @@ zhack_repair_label_cksum(int argc, char **argv)
 	(void) fprintf(stderr, "Calculated filesize to be %jd\n",
 	    (intmax_t)filesize);
 
-	if (filesize % LABEL_SIZE != 0) {
-		filesize = (filesize / LABEL_SIZE) * LABEL_SIZE;
-		(void) fprintf(stderr,
-		    "Filesize is not divisible by %jd, recalculated to %jd\n",
-		    (intmax_t)LABEL_SIZE, (intmax_t)filesize);
+	if (filesize % sizeof (vdev_label_t) != 0) {
+		filesize =
+		    (filesize / sizeof (vdev_label_t)) * sizeof (vdev_label_t);
 	}
 
 	for (int l = 0; l < VDEV_LABELS; l++) {
