@@ -575,7 +575,7 @@ zhack_repair_one_label_cksum(const int fd,
 		return;
 	} else if (err != sizeof (vdev_label_t)) {
 		(void) fprintf(stderr,
-		    "error: bad label %d read size \n", l);
+		    "error: bad label %d read size\n", l);
 		return;
 	}
 
@@ -592,6 +592,8 @@ zhack_repair_one_label_cksum(const int fd,
 		    "error: label %d: UB TXG of 0 expected, but got %"
 		    PRIu64 "\n",
 		    l, ub->ub_txg);
+		(void) fprintf(stderr, "It would appear the device was not "
+		    "properly removed.\n");
 		return;
 	}
 
@@ -632,6 +634,10 @@ zhack_repair_one_label_cksum(const int fd,
 		return;
 	}
 
+	/*
+	 * Uberblock root block pointer has valid birth TXG.
+	 * Copying it to the label NVlist
+	 */
 	if (ub->ub_rootbp.blk_birth != 0) {
 		txg = ub->ub_rootbp.blk_birth;
 		ub->ub_txg = txg;
@@ -646,7 +652,8 @@ zhack_repair_one_label_cksum(const int fd,
 
 		if (nvlist_remove_all(cfg, ZPOOL_CONFIG_POOL_TXG) != 0) {
 			(void) fprintf(stderr,
-			    "error: label %d: Failed to remove pool TXG\n",
+			    "error: label %d: Failed to remove pool TXG to "
+			    "be replaced.\n",
 			    l);
 			return;
 		}
@@ -681,6 +688,8 @@ zhack_repair_one_label_cksum(const int fd,
 		    "Expected Uberblock checksum magic number to "
 		    "be 0, but got %" PRIu64 "\n",
 		    l, ub_eck->zec_magic);
+		(void) fprintf(stderr, "It would appear there's already "
+		    "a checksum for the uberblock.\n");
 		return;
 	}
 
@@ -695,17 +704,13 @@ zhack_repair_one_label_cksum(const int fd,
 		    "Expected "
 		    "the nvlist checksum magic number to not be zero\n",
 		    l);
+		(void) fprintf(stderr, "There should already be a checksum "
+		    "for the label.\n");
 		return;
 	}
 
 	byteswap =
 	    (vdev_eck->zec_magic == BSWAP_64((uint64_t)ZEC_MAGIC));
-
-	(void) fprintf(stderr, "Label %d: "
-	    "byteswap returned %d for the uberblock magic of %"
-	    PRIu64 " and the swapped default of %" PRIu64 "\n",
-	    l, byteswap, ub->ub_magic,
-	    BSWAP_64((uint64_t)UBERBLOCK_MAGIC));
 
 	if (zhack_repair_label_write(l, fd, byteswap,
 	    ub_data, ub_eck,
