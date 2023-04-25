@@ -542,6 +542,9 @@ zhack_repair_label_write(int l, int fd, int byteswap, void *data,
 #define	ASHIFT_UBERBLOCK_SIZE(ashift) \
 	(1ULL << ASHIFT_UBERBLOCK_SHIFT(ashift))
 
+#define	REPAIR_LABEL_STATUS_CKSUM (1 << 0)
+#define	REPAIR_LABEL_STATUS_UB    (1 << 1)
+
 static void
 zhack_repair_one_label_cksum(const int fd,
     vdev_label_t * const vl,
@@ -716,20 +719,17 @@ zhack_repair_one_label_cksum(const int fd,
 	    ub_data, ub_eck,
 	    label_offset + offsetof(vdev_label_t, vl_uberblock),
 	    ASHIFT_UBERBLOCK_SIZE(ashift)))
-			labels_repaired[l] |= (1 << 0);
+			labels_repaired[l] |= REPAIR_LABEL_STATUS_CKSUM;
 
 	if (zhack_repair_label_write(l, fd, byteswap,
 	    vdev_data, vdev_eck,
 	    label_offset + offsetof(vdev_label_t, vl_vdev_phys),
 	    VDEV_PHYS_SIZE))
-			labels_repaired[l] |= (1 << 1);
+			labels_repaired[l] |= REPAIR_LABEL_STATUS_UB;
 
 	fsync(fd);
 }
 
-
-#define	REPAIR_LABEL_STATUS_CKSUM (1 << 0)
-#define	REPAIR_LABEL_STATUS_UB    (1 << 1)
 static const char*
 zhack_repair_label_status(const uint32_t * const label_status,
     const uint32_t to_check)
