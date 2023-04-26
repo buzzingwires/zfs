@@ -21,8 +21,9 @@
 #
 # Description:
 #
-# Test whether zhack label repair can recover detached devices
-# and corrupted checksums with a variety of sizes.
+# Test whether zhack repair commands can recover detached devices
+# and corrupted checksums with a variety of sizes, and ensure
+# the purposes of either command is cleanly separated from the others.
 #
 # Strategy:
 #
@@ -34,24 +35,36 @@
 # 2. Export the pool.
 # 3. Corrupt all label checksums in the pool
 # 4. Check that pool cannot be imported
-# 5. Use zhack to repair label checksums in the pool
-# 6. Check that pool can be imported and that data is intact
+# 5. Verify that it cannot be imported after using zhack repair undetach
+# 6. Use zhack repair label on device
+# 7. Check that pool can be imported and that data is intact
 #
 # Test two:
 #
 # 1. Create pool on a loopback device with some test data
 # 2. Detach either device from the mirror
 # 3. Export the pool
-# 4. Delete the non-detached device
+# 4. Remove the non-detached device and its backing file
 # 5. Verify that the remaining detached device cannot be imported
-# 6. Use zhack to repair checksums and uberblocks in the pool
-# 7. Verify that the detached device can be imported and that data is intact
+# 6. Verify that it cannot be imported after using zhack repair label
+# 7. Use zhack repair undetach on device
+# 8. Verify that the detached device can be imported and that data is intact
 #
-# Test three is the same as test two, but also corrupts the detached device
-# from step two.
+# Test three:
+#
+# 1. Create pool on a loopback device with some test data
+# 2. Detach either device from the mirror
+# 3. Export the pool
+# 4. Remove the non-detached device and its backing file
+# 5. Corrupt all label checksums on the remaining device
+# 6. Verify that the remaining detached device cannot be imported
+# 7. Verify that it cannot be imported after using zhack repair undetach
+# 8. Verify that it cannot be imported after using zhack repair label
+# 9. Use zhack repair undetach on device
+# 10. Verify that the detached device can be imported and that data is intact
 #
 
-log_assert "Verify zhack label repair <vdev> will repair label checksums and uberblocks"
+log_assert "Verify zhack repair <operation> <vdev> will repair label checksums and uberblocks"
 log_onexit cleanup
 
 VIRTUAL_DISK=$TEST_BASE_DIR/disk
@@ -102,9 +115,16 @@ function get_size_evenness
 
 function check_dataset
 {
-	log_must mounted "$TESTPOOL"/"$TESTFS"
+	L_SHOULD_SUCCEED="$1"
 
-	log_must test -f "$TESTDIR"/"test"
+	l_logop="log_mustnot"
+	if [ "$L_SHOULD_SUCCEED" == true ]; then
+		l_logop="log_must"
+	fi
+
+	"$l_logop" mounted "$TESTPOOL"/"$TESTFS"
+
+	"$l_logop" test -f "$TESTDIR"/"test"
 }
 
 function setup_dataset
@@ -121,7 +141,7 @@ function setup_dataset
 
 	log_must zpool sync "$TESTPOOL"
 
-	check_dataset
+	check_dataset true
 }
 
 function corrupt_labels
@@ -136,11 +156,12 @@ function corrupt_labels
 
 function try_import_and_repair
 {
-	L_POOLDISK="$1"
+	L_OP="$1"
+	L_POOLDISK="$2"
 
 	log_mustnot zpool import "$TESTPOOL" -d "$L_POOLDISK"
 
-	log_must zhack label repair "$L_POOLDISK"
+	log_must zhack repair "$L_OP" "$L_POOLDISK"
 
 	log_must zpool import "$TESTPOOL" -d "$L_POOLDISK"
 }
@@ -178,9 +199,13 @@ function run_test_one
 
 	corrupt_labels "$VIRTUAL_DISK"
 
-	try_import_and_repair "$VIRTUAL_DEVICE"
+	try_import_and_repair "undetach" "$VIRTUAL_MIRROR_DEVICE"
 
-	check_dataset
+	check_dataset false
+
+	try_import_and_repair "label" "$VIRTUAL_DEVICE"
+
+	check_dataset true
 
 	cleanup
 
@@ -223,9 +248,13 @@ function run_test_two
 
 	export_and_cleanup_vdisk
 
-	try_import_and_repair "$VIRTUAL_MIRROR_DEVICE"
+	try_import_and_repair "label" "$VIRTUAL_MIRROR_DEVICE"
 
-	check_dataset
+	check_dataset false
+
+	try_import_and_repair "undetach" "$VIRTUAL_MIRROR_DEVICE"
+
+	check_dataset true
 
 	cleanup
 
@@ -242,13 +271,21 @@ function run_test_three
 
 	log_must zpool detach "$TESTPOOL" "$VIRTUAL_MIRROR_DEVICE"
 
-	corrupt_labels "$VIRTUAL_MIRROR_DISK"
-
 	export_and_cleanup_vdisk
 
-	try_import_and_repair "$VIRTUAL_MIRROR_DEVICE"
+	corrupt_labels "$VIRTUAL_MIRROR_DISK"
 
-	check_dataset
+	try_import_and_repair "undetach" "$VIRTUAL_MIRROR_DEVICE"
+
+	check_dataset false
+
+	try_import_and_repair "label" "$VIRTUAL_MIRROR_DEVICE"
+
+	check_dataset false
+
+	try_import_and_repair "undetach" "$VIRTUAL_MIRROR_DEVICE"
+
+	check_dataset true
 
 	cleanup
 

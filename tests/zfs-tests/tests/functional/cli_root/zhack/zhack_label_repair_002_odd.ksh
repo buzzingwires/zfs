@@ -10,18 +10,20 @@
 #
 # Description:
 #
-# Test whether zhack label repair can recover
-# detached drives on devices of odd size.
+# Test whether zhack repair undetach can recover
+# detached drives on devices of odd size, but not
+# repair corrupted checksums.
 #
 # Strategy:
 #
 # 1. Create pool on a loopback device with some test data
 # 2. Detach either device from the mirror
 # 3. Export the pool
-# 4. Delete the non-detached device
+# 4. Remove the non-detached device and its backing file
 # 5. Verify that the remaining detached device cannot be imported
-# 6. Use zhack to repair checksums and uberblocks in the pool
-# 7. Verify that the detached device can be imported and that data is intact
+# 6. Verify that it cannot be imported after using zhack repair label
+# 7. Use zhack repair undetach on device
+# 8. Verify that the detached device can be imported and that data is intact
 
 . "$STF_SUITE"/tests/functional/cli_root/zhack/library.kshlib
 
