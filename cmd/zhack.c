@@ -848,7 +848,7 @@ static const char*
 zhack_repair_label_status(const uint32_t * const label_status,
     const uint32_t to_check)
 {
-	return (label_status & to_check != 0 ? "repaired" : "skipped");
+	return ((label_status & to_check) != 0 ? "repaired" : "skipped");
 }
 
 static int
