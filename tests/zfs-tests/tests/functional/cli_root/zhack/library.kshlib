@@ -75,9 +75,6 @@ VIRTUAL_MIRROR_DEVICE=
 
 export MINVDEVSIZE_ODD="$((MINVDEVSIZE + 1))"
 
-set -A ZHACK_PARAMS_CKSUM "-c"
-set -A ZHACK_PARAMS_UNDETACH "-u"
-
 function cleanup_lo
 {
 	L_DEVICE="$1"
@@ -116,7 +113,7 @@ function get_size_evenness
 	fi
 }
 
-function check_dataset
+function pick_logop
 {
 	L_SHOULD_SUCCEED="$1"
 
@@ -125,9 +122,17 @@ function check_dataset
 		l_logop="log_must"
 	fi
 
-	"$l_logop" mounted "$TESTPOOL"/"$TESTFS"
+	echo "$l_logop"
+}
 
-	"$l_logop" test -f "$TESTDIR"/"test"
+function check_dataset
+{
+	L_SHOULD_SUCCEED="$1"
+	L_LOGOP="$(pick_logop "$L_SHOULD_SUCCEED")"
+
+	"$L_LOGOP" mounted "$TESTPOOL"/"$TESTFS"
+
+	"$L_LOGOP" test -f "$TESTDIR"/"test"
 }
 
 function setup_dataset
@@ -159,14 +164,18 @@ function corrupt_labels
 
 function try_import_and_repair
 {
-	L_OP="$1"
-	L_POOLDISK="$2"
+	L_SHOULD_SUCCEED="$1"
+	L_OP="$2"
+	L_POOLDISK="$3"
+	L_LOGOP="$(pick_logop "$L_SHOULD_SUCCEED")"
 
 	log_mustnot zpool import "$TESTPOOL" -d "$L_POOLDISK"
 
-	log_must zhack label repair "${L_OP[@]}" "$L_POOLDISK"
+	"$L_LOGOP" zhack label repair "$L_OP" "$L_POOLDISK"
 
-	log_must zpool import "$TESTPOOL" -d "$L_POOLDISK"
+	"$L_LOGOP" zpool import "$TESTPOOL" -d "$L_POOLDISK"
+
+	check_dataset "$L_SHOULD_SUCCEED"
 }
 
 function prepare_vdev
@@ -202,13 +211,9 @@ function run_test_one
 
 	corrupt_labels "$VIRTUAL_DISK"
 
-	try_import_and_repair "$ZHACK_PARAMS_UNDETACH" "$VIRTUAL_MIRROR_DEVICE"
+	try_import_and_repair false "-u" "$VIRTUAL_DEVICE"
 
-	check_dataset false
-
-	try_import_and_repair "$ZHACK_PARAMS_CKSUM" "$VIRTUAL_DEVICE"
-
-	check_dataset true
+	try_import_and_repair true "-c" "$VIRTUAL_DEVICE"
 
 	cleanup
 
@@ -251,13 +256,9 @@ function run_test_two
 
 	export_and_cleanup_vdisk
 
-	try_import_and_repair "$ZHACK_PARAMS_CKSUM" "$VIRTUAL_MIRROR_DEVICE"
+	try_import_and_repair false "-c" "$VIRTUAL_MIRROR_DEVICE"
 
-	check_dataset false
-
-	try_import_and_repair "$ZHACK_PARAMS_UNDETACH" "$VIRTUAL_MIRROR_DEVICE"
-
-	check_dataset true
+	try_import_and_repair true "-u" "$VIRTUAL_MIRROR_DEVICE"
 
 	cleanup
 
@@ -278,17 +279,11 @@ function run_test_three
 
 	corrupt_labels "$VIRTUAL_MIRROR_DISK"
 
-	try_import_and_repair "$ZHACK_PARAMS_UNDETACH" "$VIRTUAL_MIRROR_DEVICE"
+	try_import_and_repair false "-u" "$VIRTUAL_MIRROR_DEVICE"
 
-	check_dataset false
+	try_import_and_repair false "-c" "$VIRTUAL_MIRROR_DEVICE"
 
-	try_import_and_repair "$ZHACK_PARAMS_CKSUM" "$VIRTUAL_MIRROR_DEVICE"
-
-	check_dataset false
-
-	try_import_and_repair "$ZHACK_PARAMS_UNDETACH" "$VIRTUAL_MIRROR_DEVICE"
-
-	check_dataset true
+	try_import_and_repair true "-u" "$VIRTUAL_MIRROR_DEVICE"
 
 	cleanup
 
