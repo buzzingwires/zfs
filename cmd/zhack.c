@@ -556,7 +556,7 @@ zhack_repair_check_label(uberblock_t * const ub,
     const char * const * const cfg_keys,
     const size_t cfg_keys_len,
     nvlist_t * const cfg,
-    nvlist_t * vdev_tree_cfg,
+    nvlist_t *vdev_tree_cfg,
     uint64_t * const ashift)
 {
 	int err;
@@ -702,7 +702,8 @@ zhack_repair_write_uberblock(vdev_label_t * const vl,
     const uint64_t label_offset,
     uint32_t * const labels_repaired)
 {
-	void * const ub_data = (char *)vl + offsetof(vdev_label_t, vl_uberblock);
+	void * const ub_data =
+	    (char *)vl + offsetof(vdev_label_t, vl_uberblock);
 	zio_eck_t * const ub_eck =
 	    (zio_eck_t *)
 	    ((char *)(ub_data) + (ASHIFT_UBERBLOCK_SIZE(ashift))) - 1;
@@ -728,7 +729,7 @@ zhack_repair_write_uberblock(vdev_label_t * const vl,
 }
 
 static void zhack_repair_print_cksum(FILE * const stream,
-    const zio_cksum_t* const cksum)
+    const zio_cksum_t * const cksum)
 {
 	(void) fprintf(stream,
 	    "%016llx:%016llx:%016llx:%016llx",
@@ -809,7 +810,8 @@ zhack_repair_one_label(const zhack_repair_op_t op,
 			    "Expected "
 			    "the nvlist checksum to be ",
 			    l);
-			(void) zhack_repair_print_cksum(stderr, &expected_cksum);
+			(void) zhack_repair_print_cksum(stderr,
+			    &expected_cksum);
 			(void) fprintf(stderr, " not ");
 			(void) zhack_repair_print_cksum(stderr, &actual_cksum);
 			(void) fprintf(stderr, "\n");
@@ -865,7 +867,7 @@ zhack_repair_one_label(const zhack_repair_op_t op,
 	fsync(fd);
 }
 
-static const char*
+static const char *
 zhack_repair_label_status(const uint32_t label_status,
     const uint32_t to_check)
 {
@@ -956,7 +958,7 @@ zhack_do_repair(int argc, char **argv)
 	subcommand = argv[0];
 	if (strcmp(subcommand, "label") == 0) {
 		op = ZHACK_REPAIR_OP_LABEL;
-	} else if(strcmp(subcommand, "undetach") == 0) {
+	} else if (strcmp(subcommand, "undetach") == 0) {
 		op = ZHACK_REPAIR_OP_UNDETACH;
 	} else {
 		(void) fprintf(stderr, "error: unknown subcommand: %s\n",
