@@ -503,7 +503,7 @@ zhack_do_feature(int argc, char **argv)
 #define	REPAIR_LABEL_STATUS_UB    (1 << 1)
 
 static int
-zhack_repair_read_label(const int fd, vdev_label_t * const vl,
+zhack_repair_read_label(const int fd, vdev_label_t *vl,
     const uint64_t label_offset, const int l)
 {
 	const int err = pread64(fd, vl, sizeof (vdev_label_t), label_offset);
@@ -523,8 +523,8 @@ zhack_repair_read_label(const int fd, vdev_label_t * const vl,
 }
 
 static zio_cksum_t
-zhack_repair_calc_cksum(const int byteswap, void * const data,
-    const uint64_t offset, const uint64_t abdsize)
+zhack_repair_calc_cksum(const int byteswap, void *data, const uint64_t offset,
+    const uint64_t abdsize)
 {
 	zio_cksum_t verifier;
 	zio_checksum_info_t *ci;
@@ -546,9 +546,9 @@ zhack_repair_calc_cksum(const int byteswap, void * const data,
 }
 
 static int
-zhack_repair_check_label(uberblock_t * const ub, const int l,
-    const char * const * const cfg_keys, const size_t cfg_keys_len,
-    nvlist_t * const cfg, nvlist_t *vdev_tree_cfg, uint64_t * const ashift)
+zhack_repair_check_label(uberblock_t *ub, const int l, const char **cfg_keys,
+    const size_t cfg_keys_len, nvlist_t *cfg, nvlist_t *vdev_tree_cfg,
+    uint64_t *ashift)
 {
 	int err;
 
@@ -603,7 +603,7 @@ zhack_repair_check_label(uberblock_t * const ub, const int l,
 }
 
 static int
-zhack_repair_undetach(uberblock_t * const ub, nvlist_t * const cfg, const int l)
+zhack_repair_undetach(uberblock_t *ub, nvlist_t *cfg, const int l)
 {
 	/*
 	 * Uberblock root block pointer has valid birth TXG.
@@ -643,8 +643,7 @@ zhack_repair_undetach(uberblock_t * const ub, nvlist_t * const cfg, const int l)
 
 static boolean_t
 zhack_repair_write_label(const int l, const int fd, const int byteswap,
-    void * const data, zio_eck_t * const eck, const uint64_t offset,
-    const uint64_t abdsize)
+    void *data, zio_eck_t *eck, const uint64_t offset, const uint64_t abdsize)
 {
 	const zio_cksum_t actual_cksum =
 	    zhack_repair_calc_cksum(byteswap, data, offset, abdsize);
@@ -679,13 +678,13 @@ zhack_repair_write_label(const int l, const int fd, const int byteswap,
 }
 
 static void
-zhack_repair_write_uberblock(vdev_label_t * const vl, const int l,
+zhack_repair_write_uberblock(vdev_label_t *vl, const int l,
     const uint64_t ashift, const int fd, const int byteswap,
-    const uint64_t label_offset, uint32_t * const labels_repaired)
+    const uint64_t label_offset, uint32_t *labels_repaired)
 {
-	void * const ub_data =
+	void *ub_data =
 	    (char *)vl + offsetof(vdev_label_t, vl_uberblock);
-	zio_eck_t * const ub_eck =
+	zio_eck_t *ub_eck =
 	    (zio_eck_t *)
 	    ((char *)(ub_data) + (ASHIFT_UBERBLOCK_SIZE(ashift))) - 1;
 
@@ -709,8 +708,7 @@ zhack_repair_write_uberblock(vdev_label_t * const vl, const int l,
 			labels_repaired[l] |= REPAIR_LABEL_STATUS_CKSUM;
 }
 
-static void zhack_repair_print_cksum(FILE * const stream,
-    const zio_cksum_t * const cksum)
+static void zhack_repair_print_cksum(FILE *stream, const zio_cksum_t *cksum)
 {
 	(void) fprintf(stream,
 	    "%016llx:%016llx:%016llx:%016llx",
@@ -722,18 +720,18 @@ static void zhack_repair_print_cksum(FILE * const stream,
 
 static void
 zhack_repair_one_label(const zhack_repair_op_t op, const int fd,
-    vdev_label_t * const vl, const uint64_t label_offset, const int l,
-    uint32_t * const labels_repaired)
+    vdev_label_t *vl, const uint64_t label_offset, const int l,
+    uint32_t *labels_repaired)
 {
 	ssize_t err;
-	uberblock_t * const ub = (uberblock_t *)vl->vl_uberblock;
-	void * const vdev_data =
+	uberblock_t *ub = (uberblock_t *)vl->vl_uberblock;
+	void *vdev_data =
 	    (char *)vl + offsetof(vdev_label_t, vl_vdev_phys);
-	zio_eck_t * const vdev_eck =
+	zio_eck_t *vdev_eck =
 	    (zio_eck_t *)((char *)(vdev_data) + VDEV_PHYS_SIZE) - 1;
 	const uint64_t vdev_phys_offset =
 	    label_offset + offsetof(vdev_label_t, vl_vdev_phys);
-	const char * const cfg_keys[] = { ZPOOL_CONFIG_VERSION,
+	const char *cfg_keys[] = { ZPOOL_CONFIG_VERSION,
 	    ZPOOL_CONFIG_POOL_STATE, ZPOOL_CONFIG_GUID };
 	nvlist_t *cfg;
 	nvlist_t *vdev_tree_cfg = NULL;
