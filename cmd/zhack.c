@@ -506,7 +506,7 @@ zhack_do_feature(int argc, char **argv)
 static int
 zhack_repair_read_label(const int fd,
     vdev_label_t * const vl,
-    const uint64_t label_offset
+    const uint64_t label_offset,
     const int l)
 {
 	const int err = pread64(fd, vl, sizeof (vdev_label_t), label_offset);
@@ -528,7 +528,8 @@ zhack_repair_read_label(const int fd,
 static zio_cksum_t
 zhack_repair_calc_cksum(const int byteswap,
     void * const data,
-    const uint64_t offset)
+    const uint64_t offset,
+    const uint64_t abdsize)
 {
 	zio_cksum_t verifier;
 	zio_checksum_info_t *ci;
@@ -553,8 +554,9 @@ static int
 zhack_repair_check_label(uberblock_t * const ub,
     const int l,
     const char * const * const cfg_keys,
+    const size_t cfg_keys_len,
     nvlist_t * const cfg,
-    nvlist_t * const vdev_tree_cfg,
+    nvlist_t * vdev_tree_cfg,
     uint64_t * const ashift)
 {
 	int err;
@@ -569,7 +571,7 @@ zhack_repair_check_label(uberblock_t * const ub,
 		return (1);
 	}
 
-	for (int i = 0; i < ARRAY_SIZE(cfg_keys); i++) {
+	for (int i = 0; i < cfg_keys_len; i++) {
 		uint64_t val;
 		err = nvlist_lookup_uint64(cfg, cfg_keys[i], &val);
 		if (err) {
@@ -606,9 +608,10 @@ zhack_repair_check_label(uberblock_t * const ub,
 		return (err);
 	}
 
-	return (0)
+	return (0);
 }
 
+static int
 zhack_repair_undetach(uberblock_t * const ub,
     nvlist_t * const cfg,
     const int l)
@@ -649,6 +652,47 @@ zhack_repair_undetach(uberblock_t * const ub,
 	return (0);
 }
 
+static boolean_t
+zhack_repair_write_label(int l,
+    int fd,
+    int byteswap,
+    void *data,
+    zio_eck_t *eck,
+    uint64_t offset,
+    const uint64_t abdsize)
+{
+	const zio_cksum_t actual_cksum =
+	    zhack_repair_calc_cksum(byteswap, data, offset, abdsize);
+	zio_cksum_t expected_cksum = eck->zec_cksum;
+	ssize_t err;
+
+	if (byteswap) {
+		byteswap_uint64_array(&expected_cksum, sizeof (zio_cksum_t));
+		eck->zec_magic = BSWAP_64(eck->zec_magic);
+	}
+
+	if (ZIO_CHECKSUM_EQUAL(actual_cksum, expected_cksum))
+		return (B_FALSE);
+
+	eck->zec_cksum = actual_cksum;
+
+	err = pwrite64(fd, data, abdsize, offset);
+	if (err == -1) {
+		(void) fprintf(stderr, "error: cannot write label %d: %s\n",
+		    l, strerror(errno));
+		return (B_FALSE);
+	} else if (err != abdsize) {
+		(void) fprintf(stderr, "error: bad write size label %d\n", l);
+		return (B_FALSE);
+	} else {
+		(void) fprintf(stderr,
+		    "label %d: wrote %" PRIu64 " bytes at offset %" PRIu64 "\n",
+		    l, abdsize, offset);
+	}
+
+	return (B_TRUE);
+}
+
 static void
 zhack_repair_write_uberblock(vdev_label_t * const vl,
     const int l,
@@ -683,40 +727,15 @@ zhack_repair_write_uberblock(vdev_label_t * const vl,
 			labels_repaired[l] |= REPAIR_LABEL_STATUS_CKSUM;
 }
 
-static boolean_t
-zhack_repair_write_label(int l, int fd, int byteswap, void *data,
-    zio_eck_t *eck, uint64_t offset)
+static void zhack_repair_print_cksum(FILE * const stream,
+    const zio_cksum_t* const cksum)
 {
-	const zio_cksum_t actual_cksum =
-	    zhack_repair_calc_cksum(byteswap, data, offset);
-	zio_cksum_t expected_cksum = eck->zec_cksum;
-	ssize_t err;
-
-	if (byteswap) {
-		byteswap_uint64_array(&expected_cksum, sizeof (zio_cksum_t));
-		eck->zec_magic = BSWAP_64(eck->zec_magic);
-	}
-
-	if (ZIO_CHECKSUM_EQUAL(actual_cksum, expected_cksum))
-		return (B_FALSE);
-
-	eck->zec_cksum = actual_cksum;
-
-	err = pwrite64(fd, data, abdsize, offset);
-	if (err == -1) {
-		(void) fprintf(stderr, "error: cannot write label %d: %s\n",
-		    l, strerror(errno));
-		return (B_FALSE);
-	} else if (err != abdsize) {
-		(void) fprintf(stderr, "error: bad write size label %d\n", l);
-		return (B_FALSE);
-	} else {
-		(void) fprintf(stderr,
-		    "label %d: wrote %" PRIu64 " bytes at offset %" PRIu64 "\n",
-		    l, abdsize, offset);
-	}
-
-	return (B_TRUE);
+	(void) fprintf(stream,
+	    "%016llx:%016llx:%016llx:%016llx",
+	    (u_longlong_t)cksum->zc_word[0],
+	    (u_longlong_t)cksum->zc_word[1],
+	    (u_longlong_t)cksum->zc_word[2],
+	    (u_longlong_t)cksum->zc_word[3]);
 }
 
 static void
@@ -764,7 +783,8 @@ zhack_repair_one_label(const zhack_repair_op_t op,
 		const zio_cksum_t actual_cksum =
 		    zhack_repair_calc_cksum(byteswap,
 		    vdev_data,
-		    vdev_phys_offset);
+		    vdev_phys_offset,
+		    VDEV_PHYS_SIZE);
 		uint64_t expected_magic = ZEC_MAGIC;
 		uint64_t actual_magic = vdev_eck->zec_magic;
 		boolean_t cksum_fail = B_FALSE;
@@ -777,21 +797,22 @@ zhack_repair_one_label(const zhack_repair_op_t op,
 		if (actual_magic != expected_magic) {
 			(void) fprintf(stderr, "error: label %d: "
 			    "Expected "
-			    "the nvlist checksum magic number to not be "
-			    PRIu64 " not " PRIu64 "\n",
+			    "the nvlist checksum magic number to not be %"
+			    PRIu64 " not %" PRIu64 "\n",
+			    l,
 			    expected_magic,
-			    actual_magic,
-			    l);
+			    actual_magic);
 			cksum_fail = B_TRUE;
 		}
-		if (actual_cksum != expected_cksum) {
+		if (!ZIO_CHECKSUM_EQUAL(actual_cksum, expected_cksum)) {
 			(void) fprintf(stderr, "error: label %d: "
 			    "Expected "
-			    "the nvlist checksum to not be "
-			    PRIu64 " not " PRIu64 "\n",
-			    expected_cksum,
-			    actual_cksum,
+			    "the nvlist checksum to be ",
 			    l);
+			(void) zhack_repair_print_cksum(stderr, &expected_cksum);
+			(void) fprintf(stderr, " not ");
+			(void) zhack_repair_print_cksum(stderr, &actual_cksum);
+			(void) fprintf(stderr, "\n");
 			cksum_fail = B_TRUE;
 		}
 		if (cksum_fail) {
@@ -810,7 +831,7 @@ zhack_repair_one_label(const zhack_repair_op_t op,
 	}
 
 	err = zhack_repair_check_label(ub,
-	    l, cfg_keys, cfg, vdev_tree_cfg, &ashift);
+	    l, cfg_keys, ARRAY_SIZE(cfg_keys), cfg, vdev_tree_cfg, &ashift);
 	if (err)
 		return;
 
@@ -845,7 +866,7 @@ zhack_repair_one_label(const zhack_repair_op_t op,
 }
 
 static const char*
-zhack_repair_label_status(const uint32_t * const label_status,
+zhack_repair_label_status(const uint32_t label_status,
     const uint32_t to_check)
 {
 	return ((label_status & to_check) != 0 ? "repaired" : "skipped");
