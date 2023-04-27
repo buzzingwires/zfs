@@ -10,7 +10,7 @@
 #
 # Description:
 #
-# Test whether zhack repair undetach can recover
+# Test whether zhack label repair can recover
 # detached drives on devices of odd size, but not
 # repair corrupted checksums.
 #
@@ -21,8 +21,8 @@
 # 3. Export the pool
 # 4. Remove the non-detached device and its backing file
 # 5. Verify that the remaining detached device cannot be imported
-# 6. Verify that it cannot be imported after using zhack repair label
-# 7. Use zhack repair undetach on device
+# 6. Verify that it cannot be imported after using zhack label repair -c
+# 7. Use zhack label repair -u on device
 # 8. Verify that the detached device can be imported and that data is intact
 
 . "$STF_SUITE"/tests/functional/cli_root/zhack/library.kshlib

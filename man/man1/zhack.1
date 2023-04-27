@@ -97,22 +97,22 @@ feature is now required to read the pool MOS.
 .
 .It Xo
 .Nm zhack
-.Cm repair label
+.Cm label repair
+.Op Ns Fl c | Ns Fl u
 .Ar device
 .Xc
-Repair corrupted ZFS labels by assuming their contents are correct and updating
-the checksums to reflect them. This may allow a previously unimportable pool to
-be imported.
+Repair labels of a specified
+.Ar device
+according to options.
+.Pp
+The
+.Fl c
+flag repairs corrupted label checksums
 .
-.It Xo
-.Nm zhack
-.Cm repair undetach
-.Ar device
-.Xc
-Regenerate the labels of a detached device to allow the associated pool to be
-imported again. If checksums are also corrupted, it may be necessary to run
-.Nm zhack
-.Cm repair label
+.Pp
+The
+.Fl u
+flag restores the label on a detached device
 .El
 .
 .Sh GLOBAL OPTIONS

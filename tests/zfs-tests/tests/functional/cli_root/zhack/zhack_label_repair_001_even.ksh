@@ -10,7 +10,7 @@
 #
 # Description:
 #
-# Test whether zhack repair label can recover
+# Test whether zhack label repair can recover
 # corrupted checksums on devices of even size,
 # but not undetached devices.
 #
@@ -20,8 +20,8 @@
 # 2. Export the pool.
 # 3. Corrupt all label checksums in the pool
 # 4. Check that pool cannot be imported
-# 5. Verify that it cannot be imported after using zhack repair undetach
-# 6. Use zhack repair label on device
+# 5. Verify that it cannot be imported after using zhack label repair -u
+# 6. Use zhack label repair -c on device
 # 7. Check that pool can be imported and that data is intact
 
 . "$STF_SUITE"/tests/functional/cli_root/zhack/library.kshlib

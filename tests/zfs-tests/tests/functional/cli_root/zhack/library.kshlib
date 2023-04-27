@@ -21,7 +21,7 @@
 #
 # Description:
 #
-# Test whether zhack repair commands can recover detached devices
+# Test whether zhack label repair commands can recover detached devices
 # and corrupted checksums with a variety of sizes, and ensure
 # the purposes of either command is cleanly separated from the others.
 #
@@ -35,8 +35,8 @@
 # 2. Export the pool.
 # 3. Corrupt all label checksums in the pool
 # 4. Check that pool cannot be imported
-# 5. Verify that it cannot be imported after using zhack repair undetach
-# 6. Use zhack repair label on device
+# 5. Verify that it cannot be imported after using zhack label repair -u
+# 6. Use zhack label repair -c on device
 # 7. Check that pool can be imported and that data is intact
 #
 # Test two:
@@ -46,8 +46,8 @@
 # 3. Export the pool
 # 4. Remove the non-detached device and its backing file
 # 5. Verify that the remaining detached device cannot be imported
-# 6. Verify that it cannot be imported after using zhack repair label
-# 7. Use zhack repair undetach on device
+# 6. Verify that it cannot be imported after using zhack label repair -c
+# 7. Use zhack label repair -u on device
 # 8. Verify that the detached device can be imported and that data is intact
 #
 # Test three:
@@ -58,13 +58,13 @@
 # 4. Remove the non-detached device and its backing file
 # 5. Corrupt all label checksums on the remaining device
 # 6. Verify that the remaining detached device cannot be imported
-# 7. Verify that it cannot be imported after using zhack repair undetach
-# 8. Verify that it cannot be imported after using zhack repair label
-# 9. Use zhack repair undetach on device
+# 7. Verify that it cannot be imported after using zhack label repair -u
+# 8. Verify that it cannot be imported after using zhack label repair -c
+# 9. Use zhack label repair -u on device
 # 10. Verify that the detached device can be imported and that data is intact
 #
 
-log_assert "Verify zhack repair <operation> <vdev> will repair label checksums and uberblocks"
+log_assert "Verify zhack label repair <operation> <vdev> will repair label checksums and uberblocks"
 log_onexit cleanup
 
 VIRTUAL_DISK=$TEST_BASE_DIR/disk
@@ -74,6 +74,9 @@ VIRTUAL_DEVICE=
 VIRTUAL_MIRROR_DEVICE=
 
 export MINVDEVSIZE_ODD="$((MINVDEVSIZE + 1))"
+
+set -A ZHACK_PARAMS_CKSUM "-c"
+set -A ZHACK_PARAMS_UNDETACH "-u"
 
 function cleanup_lo
 {
@@ -161,7 +164,7 @@ function try_import_and_repair
 
 	log_mustnot zpool import "$TESTPOOL" -d "$L_POOLDISK"
 
-	log_must zhack repair "$L_OP" "$L_POOLDISK"
+	log_must zhack label repair "${L_OP[@]}" "$L_POOLDISK"
 
 	log_must zpool import "$TESTPOOL" -d "$L_POOLDISK"
 }
@@ -199,11 +202,11 @@ function run_test_one
 
 	corrupt_labels "$VIRTUAL_DISK"
 
-	try_import_and_repair "undetach" "$VIRTUAL_MIRROR_DEVICE"
+	try_import_and_repair "$ZHACK_PARAMS_UNDETACH" "$VIRTUAL_MIRROR_DEVICE"
 
 	check_dataset false
 
-	try_import_and_repair "label" "$VIRTUAL_DEVICE"
+	try_import_and_repair "$ZHACK_PARAMS_CKSUM" "$VIRTUAL_DEVICE"
 
 	check_dataset true
 
@@ -248,11 +251,11 @@ function run_test_two
 
 	export_and_cleanup_vdisk
 
-	try_import_and_repair "label" "$VIRTUAL_MIRROR_DEVICE"
+	try_import_and_repair "$ZHACK_PARAMS_CKSUM" "$VIRTUAL_MIRROR_DEVICE"
 
 	check_dataset false
 
-	try_import_and_repair "undetach" "$VIRTUAL_MIRROR_DEVICE"
+	try_import_and_repair "$ZHACK_PARAMS_UNDETACH" "$VIRTUAL_MIRROR_DEVICE"
 
 	check_dataset true
 
@@ -275,15 +278,15 @@ function run_test_three
 
 	corrupt_labels "$VIRTUAL_MIRROR_DISK"
 
-	try_import_and_repair "undetach" "$VIRTUAL_MIRROR_DEVICE"
+	try_import_and_repair "$ZHACK_PARAMS_UNDETACH" "$VIRTUAL_MIRROR_DEVICE"
 
 	check_dataset false
 
-	try_import_and_repair "label" "$VIRTUAL_MIRROR_DEVICE"
+	try_import_and_repair "$ZHACK_PARAMS_CKSUM" "$VIRTUAL_MIRROR_DEVICE"
 
 	check_dataset false
 
-	try_import_and_repair "undetach" "$VIRTUAL_MIRROR_DEVICE"
+	try_import_and_repair "$ZHACK_PARAMS_UNDETACH" "$VIRTUAL_MIRROR_DEVICE"
 
 	check_dataset true
 
