@@ -522,14 +522,13 @@ zhack_repair_read_label(const int fd, vdev_label_t *vl,
 	return (0);
 }
 
-static zio_cksum_t
+static void
 zhack_repair_calc_cksum(const int byteswap, void *data, const uint64_t offset,
-    const uint64_t abdsize)
+    const uint64_t abdsize, zio_cksum_t *cksum)
 {
 	zio_cksum_t verifier;
 	zio_checksum_info_t *ci;
 	abd_t *abd;
-	zio_cksum_t cksum;
 
 	ZIO_SET_CHECKSUM(&verifier, offset, 0, 0, 0);
 
@@ -539,10 +538,8 @@ zhack_repair_calc_cksum(const int byteswap, void *data, const uint64_t offset,
 
 	ci = &zio_checksum_table[ZIO_CHECKSUM_LABEL];
 	abd = abd_get_from_buf(data, abdsize);
-	ci->ci_func[byteswap](abd, abdsize, NULL, &cksum);
+	ci->ci_func[byteswap](abd, abdsize, NULL, cksum);
 	abd_free(abd);
-
-	return (cksum);
 }
 
 static int
@@ -645,8 +642,8 @@ static boolean_t
 zhack_repair_write_label(const int l, const int fd, const int byteswap,
     void *data, zio_eck_t *eck, const uint64_t offset, const uint64_t abdsize)
 {
-	const zio_cksum_t actual_cksum =
-	    zhack_repair_calc_cksum(byteswap, data, offset, abdsize);
+	zio_cksum_t actual_cksum;
+	zhack_repair_calc_cksum(byteswap, data, offset, abdsize, &actual_cksum);
 	zio_cksum_t expected_cksum = eck->zec_cksum;
 	ssize_t err;
 
@@ -705,7 +702,7 @@ zhack_repair_write_uberblock(vdev_label_t *vl, const int l,
 	    ub_data, ub_eck,
 	    label_offset + offsetof(vdev_label_t, vl_uberblock),
 	    ASHIFT_UBERBLOCK_SIZE(ashift)))
-			labels_repaired[l] |= REPAIR_LABEL_STATUS_CKSUM;
+			labels_repaired[l] |= REPAIR_LABEL_STATUS_UB;
 }
 
 static void zhack_repair_print_cksum(FILE *stream, const zio_cksum_t *cksum)
@@ -755,11 +752,11 @@ zhack_repair_one_label(const zhack_repair_op_t op, const int fd,
 	byteswap =
 	    (vdev_eck->zec_magic == BSWAP_64((uint64_t)ZEC_MAGIC));
 
-	if ((op & ZHACK_REPAIR_OP_CKSUM) != 0) {
+	if ((op & ZHACK_REPAIR_OP_CKSUM) == 0) {
 		zio_cksum_t expected_cksum = vdev_eck->zec_cksum;
-		const zio_cksum_t actual_cksum =
-		    zhack_repair_calc_cksum(byteswap, vdev_data,
-		    vdev_phys_offset, VDEV_PHYS_SIZE);
+		zio_cksum_t actual_cksum;
+		zhack_repair_calc_cksum(byteswap, vdev_data, vdev_phys_offset,
+		    VDEV_PHYS_SIZE, &actual_cksum);
 		uint64_t expected_magic = ZEC_MAGIC;
 		uint64_t actual_magic = vdev_eck->zec_magic;
 		boolean_t cksum_fail = B_FALSE;
@@ -829,7 +826,7 @@ zhack_repair_one_label(const zhack_repair_op_t op, const int fd,
 
 	if (zhack_repair_write_label(l, fd, byteswap, vdev_data, vdev_eck,
 	    vdev_phys_offset, VDEV_PHYS_SIZE))
-			labels_repaired[l] |= REPAIR_LABEL_STATUS_UB;
+			labels_repaired[l] |= REPAIR_LABEL_STATUS_CKSUM;
 
 	fsync(fd);
 }
@@ -1000,7 +997,7 @@ main(int argc, char **argv)
 	if (strcmp(subcommand, "feature") == 0) {
 		rv = zhack_do_feature(argc, argv);
 	} else if (strcmp(subcommand, "label") == 0) {
-		rv = zhack_do_label(argc, argv);
+		return (zhack_do_label(argc, argv));
 	} else {
 		(void) fprintf(stderr, "error: unknown subcommand: %s\n",
 		    subcommand);
