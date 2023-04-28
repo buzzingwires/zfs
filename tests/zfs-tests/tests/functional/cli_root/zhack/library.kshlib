@@ -164,18 +164,20 @@ function corrupt_labels
 
 function try_import_and_repair
 {
-	L_SHOULD_SUCCEED="$1"
-	L_OP="$2"
-	L_POOLDISK="$3"
-	L_LOGOP="$(pick_logop "$L_SHOULD_SUCCEED")"
+	L_REPAIR_SHOULD_SUCCEED="$1"
+	L_IMPORT_SHOULD_SUCCEED="$2"
+	L_OP="$3"
+	L_POOLDISK="$4"
+	L_REPAIR_LOGOP="$(pick_logop "$L_REPAIR_SHOULD_SUCCEED")"
+	L_IMPORT_LOGOP="$(pick_logop "$L_IMPORT_SHOULD_SUCCEED")"
 
 	log_mustnot zpool import "$TESTPOOL" -d "$L_POOLDISK"
 
-	"$L_LOGOP" zhack label repair "$L_OP" "$L_POOLDISK"
+	"$L_REPAIR_LOGOP" zhack label repair "$L_OP" "$L_POOLDISK"
 
-	"$L_LOGOP" zpool import "$TESTPOOL" -d "$L_POOLDISK"
+	"$L_IMPORT_LOGOP" zpool import "$TESTPOOL" -d "$L_POOLDISK"
 
-	check_dataset "$L_SHOULD_SUCCEED"
+	check_dataset "$L_IMPORT_SHOULD_SUCCEED"
 }
 
 function prepare_vdev
@@ -211,9 +213,9 @@ function run_test_one
 
 	corrupt_labels "$VIRTUAL_DISK"
 
-	try_import_and_repair false "-u" "$VIRTUAL_DEVICE"
+	try_import_and_repair false false "-u" "$VIRTUAL_DEVICE"
 
-	try_import_and_repair true "-c" "$VIRTUAL_DEVICE"
+	try_import_and_repair true true "-c" "$VIRTUAL_DEVICE"
 
 	cleanup
 
@@ -256,9 +258,9 @@ function run_test_two
 
 	export_and_cleanup_vdisk
 
-	try_import_and_repair false "-c" "$VIRTUAL_MIRROR_DEVICE"
+	try_import_and_repair false false "-c" "$VIRTUAL_MIRROR_DEVICE"
 
-	try_import_and_repair true "-u" "$VIRTUAL_MIRROR_DEVICE"
+	try_import_and_repair true true "-u" "$VIRTUAL_MIRROR_DEVICE"
 
 	cleanup
 
@@ -279,11 +281,11 @@ function run_test_three
 
 	corrupt_labels "$VIRTUAL_MIRROR_DISK"
 
-	try_import_and_repair false "-u" "$VIRTUAL_MIRROR_DEVICE"
+	try_import_and_repair false false "-u" "$VIRTUAL_MIRROR_DEVICE"
 
-	try_import_and_repair false "-c" "$VIRTUAL_MIRROR_DEVICE"
+	try_import_and_repair true false "-c" "$VIRTUAL_MIRROR_DEVICE"
 
-	try_import_and_repair true "-u" "$VIRTUAL_MIRROR_DEVICE"
+	try_import_and_repair true true "-u" "$VIRTUAL_MIRROR_DEVICE"
 
 	cleanup
 
