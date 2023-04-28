@@ -718,8 +718,8 @@ zhack_repair_print_cksum(FILE *stream, const zio_cksum_t *cksum)
 	    (u_longlong_t)cksum->zc_word[3]);
 }
 
-static boolean_t
-zhack_repair_test_cksum_fail(const int byteswap, void *vdev_data,
+static int
+zhack_repair_test_cksum(const int byteswap, void *vdev_data,
     zio_eck_t *vdev_eck, const uint64_t vdev_phys_offset, const int l)
 {
 	const zio_cksum_t expected_cksum = vdev_eck->zec_cksum;
@@ -729,14 +729,14 @@ zhack_repair_test_cksum_fail(const int byteswap, void *vdev_data,
 	const uint64_t expected_magic = byteswap ?
 	    BSWAP_64(ZEC_MAGIC) : ZEC_MAGIC;
 	const uint64_t actual_magic = vdev_eck->zec_magic;
-	boolean_t cksum_fail = B_FALSE;
+	int err = 0;
 	if (actual_magic != expected_magic) {
 		(void) fprintf(stderr, "error: label %d: "
 		    "Expected "
 		    "the nvlist checksum magic number to not be %"
 		    PRIu64 " not %" PRIu64 "\n",
 		    l, expected_magic, actual_magic);
-		cksum_fail = B_TRUE;
+		err = ECKSUM;
 	}
 	if (!ZIO_CHECKSUM_EQUAL(actual_cksum, expected_cksum)) {
 		(void) fprintf(stderr, "error: label %d: "
@@ -746,9 +746,9 @@ zhack_repair_test_cksum_fail(const int byteswap, void *vdev_data,
 		(void) fprintf(stderr, " not ");
 		zhack_repair_print_cksum(stderr, &actual_cksum);
 		(void) fprintf(stderr, "\n");
-		cksum_fail = B_TRUE;
+		err = ECKSUM;
 	}
-	return (cksum_fail);
+	return (err);
 }
 
 static void
@@ -795,8 +795,8 @@ zhack_repair_one_label(const zhack_repair_op_t op, const int fd,
 	}
 
 	if ((op & ZHACK_REPAIR_OP_CKSUM) == 0) {
-		if (zhack_repair_test_cksum_fail(byteswap, vdev_data, vdev_eck,
-		    vdev_phys_offset, l)) {
+		if (zhack_repair_test_cksum(byteswap, vdev_data, vdev_eck,
+		    vdev_phys_offset, l) != 0) {
 			(void) fprintf(stderr, "It would appear checksums are "
 			    "corrupted. Try zhack repair label -c <device>\n");
 			return;
