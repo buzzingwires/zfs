@@ -785,7 +785,7 @@ zhack_repair_one_label(const zhack_repair_op_t op, const int fd,
 			(void) zhack_repair_print_cksum(stderr,
 			    &expected_cksum);
 			(void) fprintf(stderr, " not ");
-			(void) zhack_repair_print_cksum(stderr, &actual_cksum);
+			zhack_repair_print_cksum(stderr, &actual_cksum);
 			(void) fprintf(stderr, "\n");
 			cksum_fail = B_TRUE;
 		}
@@ -825,7 +825,7 @@ zhack_repair_one_label(const zhack_repair_op_t op, const int fd,
 			return;
 		}
 
-		(void) zhack_repair_write_uberblock(vl,
+		zhack_repair_write_uberblock(vl,
 		    l, ashift, fd, byteswap, label_offset, labels_repaired);
 	}
 
@@ -878,7 +878,7 @@ zhack_label_repair(const zhack_repair_op_t op, const int argc, char **argv)
 	}
 
 	for (int l = 0; l < VDEV_LABELS; l++) {
-		(void) zhack_repair_one_label(op, fd, &labels[l],
+		zhack_repair_one_label(op, fd, &labels[l],
 		    vdev_label_offset(filesize, l, 0), l, labels_repaired);
 	}
 
@@ -888,7 +888,7 @@ zhack_label_repair(const zhack_repair_op_t op, const int argc, char **argv)
 
 	for (int l = 0; l < VDEV_LABELS; l++) {
 		const uint32_t lr = labels_repaired[l];
-		printf("label %d: ", l);
+		(void) printf("label %d: ", l);
 		(void) printf("uberblock: %s ",
 		    zhack_repair_label_status(lr, REPAIR_LABEL_STATUS_UB));
 		(void) printf("checksum: %s\n",
