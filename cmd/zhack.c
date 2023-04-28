@@ -59,7 +59,7 @@ static char *g_pool;
 static boolean_t g_readonly;
 
 typedef enum {
-	ZHACK_REPAIR_OP_UNKNOWN  = (1 << 0),
+	ZHACK_REPAIR_OP_UNKNOWN  = 0,
 	ZHACK_REPAIR_OP_CKSUM    = (1 << 1),
 	ZHACK_REPAIR_OP_UNDETACH = (1 << 2)
 } zhack_repair_op_t;
