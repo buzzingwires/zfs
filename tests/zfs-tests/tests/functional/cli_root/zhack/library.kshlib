@@ -83,6 +83,11 @@
 log_assert "Verify zhack label repair <operation> <vdev> will repair label checksums and uberblocks"
 log_onexit cleanup
 
+LABEL_SIZE="$((2**18))"
+LABEL_NVLIST_END="$((LABEL_SIZE / 2))"
+LABEL_CKSUM_SIZE="32"
+LABEL_CKSUM_START="$(( LABEL_NVLIST_END - LABEL_CKSUM_SIZE ))"
+
 VIRTUAL_DISK=$TEST_BASE_DIR/disk
 VIRTUAL_MIRROR_DISK=$TEST_BASE_DIR/mirrordisk
 
@@ -113,17 +118,6 @@ function cleanup
 	VIRTUAL_MIRROR_DEVICE=
 	[[ -f "$VIRTUAL_DISK" ]] && log_must rm "$VIRTUAL_DISK"
 	[[ -f "$VIRTUAL_MIRROR_DISK" ]] && log_must rm "$VIRTUAL_MIRROR_DISK"
-}
-
-function get_size_evenness
-{
-	L_SIZE="$1"
-
-	if [ "$((L_SIZE % 2**18))" -eq 0 ]; then
-		echo "even"
-	else
-		echo "uneven"
-	fi
 }
 
 RAND_MAX="$((2**15 - 1))"
@@ -175,14 +169,44 @@ function setup_dataset
 	check_dataset true
 }
 
+function get_practical_size
+{
+	L_SIZE="$1"
+
+	if [ "$((L_SIZE % LABEL_SIZE))" -ne 0 ]; then
+		echo "$(((L_SIZE / LABEL_SIZE) * LABEL_SIZE))"
+	else
+		echo "$L_SIZE"
+	fi
+}
+
+function corrupt_sized_label_checksum # label_number vdev_path
+{
+	L_SIZE="$1"
+	L_LABEL="$2"
+	L_DEVICE="$3"
+
+	L_PRACTICAL_SIZE="$(get_practical_size "$L_SIZE")"
+
+	typeset -a L_OFFSETS=("$LABEL_CKSUM_START" \
+	    "$((LABEL_SIZE + LABEL_CKSUM_START))" \
+		"$(((L_PRACTICAL_SIZE - LABEL_SIZE*2) + LABEL_CKSUM_START))" \
+		"$(((L_PRACTICAL_SIZE - LABEL_SIZE) + LABEL_CKSUM_START))")
+
+	dd if=/dev/urandom of="$L_DEVICE" \
+	    seek="${L_OFFSETS["$L_LABEL"]}" bs=1 count="$LABEL_CKSUM_SIZE" \
+	    conv=notrunc
+}
+
 function corrupt_labels
 {
-	L_DISK="$1"
+	L_SIZE="$1"
+	L_DISK="$2"
 
-	corrupt_label_checksum 0 "$L_DISK"
-	corrupt_label_checksum 1 "$L_DISK"
-	corrupt_label_checksum 2 "$L_DISK"
-	corrupt_label_checksum 3 "$L_DISK"
+	corrupt_sized_label_checksum "$L_SIZE" 0 "$L_DISK"
+	corrupt_sized_label_checksum "$L_SIZE" 1 "$L_DISK"
+	corrupt_sized_label_checksum "$L_SIZE" 2 "$L_DISK"
+	corrupt_sized_label_checksum "$L_SIZE" 3 "$L_DISK"
 }
 
 function try_import_and_repair
@@ -234,7 +258,7 @@ function run_test_one
 
 	log_must zpool export "$TESTPOOL"
 
-	corrupt_labels "$VIRTUAL_DISK"
+	corrupt_labels "$L_SIZE" "$VIRTUAL_DISK"
 
 	try_import_and_repair false false "-u" "$VIRTUAL_DEVICE"
 
@@ -242,7 +266,7 @@ function run_test_one
 
 	cleanup
 
-	log_pass "zhack label repair corruption test passed with $(get_size_evenness "$L_SIZE") size of $L_SIZE"
+	log_pass "zhack label repair corruption test passed with size of $L_SIZE"
 }
 
 function make_mirrored_pool
@@ -287,7 +311,7 @@ function run_test_two
 
 	cleanup
 
-	log_pass "zhack label repair detached test passed with $(get_size_evenness "$L_SIZE") size of $L_SIZE"
+	log_pass "zhack label repair detached test passed with size of $L_SIZE"
 }
 
 function run_test_three
@@ -302,7 +326,7 @@ function run_test_three
 
 	export_and_cleanup_vdisk
 
-	corrupt_labels "$VIRTUAL_MIRROR_DISK"
+	corrupt_labels "$L_SIZE" "$VIRTUAL_MIRROR_DISK"
 
 	try_import_and_repair false false "-u" "$VIRTUAL_MIRROR_DEVICE"
 
@@ -312,7 +336,7 @@ function run_test_three
 
 	cleanup
 
-	log_pass "zhack label repair corruption and detached test passed with $(get_size_evenness "$L_SIZE") size of $L_SIZE"
+	log_pass "zhack label repair corruption and detached test passed with size of $L_SIZE"
 }
 
 function run_test_four
@@ -327,11 +351,11 @@ function run_test_four
 
 	export_and_cleanup_vdisk
 
-	corrupt_labels "$VIRTUAL_MIRROR_DISK"
+	corrupt_labels "$L_SIZE" "$VIRTUAL_MIRROR_DISK"
 
 	try_import_and_repair true true "-cu" "$VIRTUAL_MIRROR_DEVICE"
 
 	cleanup
 
-	log_pass "zhack label repair corruption and detached single-command test passed with $(get_size_evenness "$L_SIZE") size of $L_SIZE."
+	log_pass "zhack label repair corruption and detached single-command test passed with size of $L_SIZE."
 }
