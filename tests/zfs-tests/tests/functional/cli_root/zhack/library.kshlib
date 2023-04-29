@@ -180,7 +180,7 @@ function get_practical_size
 	fi
 }
 
-function corrupt_sized_label_checksum # label_number vdev_path
+function corrupt_sized_label_checksum
 {
 	L_SIZE="$1"
 	L_LABEL="$2"
