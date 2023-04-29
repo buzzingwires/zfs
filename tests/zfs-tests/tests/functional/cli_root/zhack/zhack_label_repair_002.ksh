@@ -11,7 +11,7 @@
 # Description:
 #
 # Test whether zhack label repair can recover
-# detached drives on devices of even size, but not
+# detached drives on devices of varied size, but not
 # repair corrupted checksums.
 #
 # Strategy:
@@ -28,4 +28,4 @@
 
 . "$STF_SUITE"/tests/functional/cli_root/zhack/library.kshlib
 
-run_test_two "$MINVDEVSIZE"
+run_test_two "$(get_devsize)"

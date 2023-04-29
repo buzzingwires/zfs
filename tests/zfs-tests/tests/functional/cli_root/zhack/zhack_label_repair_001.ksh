@@ -11,7 +11,7 @@
 # Description:
 #
 # Test whether zhack label repair can recover
-# corrupted checksums on devices of odd size,
+# corrupted checksums on devices of varied size,
 # but not undetached devices.
 #
 # Strategy:
@@ -27,4 +27,4 @@
 
 . "$STF_SUITE"/tests/functional/cli_root/zhack/library.kshlib
 
-run_test_one "$MINVDEVSIZE_ODD"
+run_test_one "$(get_devsize)"

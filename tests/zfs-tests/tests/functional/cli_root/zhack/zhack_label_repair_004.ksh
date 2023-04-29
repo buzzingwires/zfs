@@ -10,9 +10,8 @@
 #
 # Description:
 #
-# Test whether zhack label repair can recover
-# detached drives on devices of odd size, but not
-# repair corrupted checksums.
+# Test whether zhack label repair can recover a device of varied size with
+# corrupted checksums and which has been detached (in one command).
 #
 # Strategy:
 #
@@ -20,12 +19,12 @@
 # 2. Detach either device from the mirror
 # 3. Export the pool
 # 4. Remove the non-detached device and its backing file
-# 5. Verify that the remaining detached device cannot be imported
-# 6. Verify that it cannot be imported after using zhack label repair -c
-#    to ensure that the -c option will not undetach a device.
-# 7. Use zhack label repair -u on device
+# 5. Corrupt all label checksums on the remaining device
+# 6. Verify that the remaining detached device cannot be imported
+# 7. Use zhack label repair -cu on device to attempt to fix checksums and
+#    undetach the device in a single operation.
 # 8. Verify that the detached device can be imported and that data is intact
 
 . "$STF_SUITE"/tests/functional/cli_root/zhack/library.kshlib
 
-run_test_two "$MINVDEVSIZE_ODD"
+run_test_four "$(get_devsize)"

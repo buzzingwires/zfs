@@ -10,7 +10,7 @@
 #
 # Description:
 #
-# Test whether zhack label repair can recover a device of odd size with
+# Test whether zhack label repair can recover a device of varied size with
 # corrupted checksums and which has been detached.
 #
 # Strategy:
@@ -30,4 +30,4 @@
 
 . "$STF_SUITE"/tests/functional/cli_root/zhack/library.kshlib
 
-run_test_three "$MINVDEVSIZE_ODD"
+run_test_three "$(get_devsize)"

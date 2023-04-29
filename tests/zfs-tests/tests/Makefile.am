@@ -932,12 +932,10 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zfs/zfs_001_neg.ksh \
 	functional/cli_root/zfs/zfs_002_pos.ksh \
 	functional/cli_root/zfs/zfs_003_neg.ksh \
-	functional/cli_root/zhack/zhack_label_repair_001_even.ksh \
-	functional/cli_root/zhack/zhack_label_repair_001_odd.ksh \
-	functional/cli_root/zhack/zhack_label_repair_002_even.ksh \
-	functional/cli_root/zhack/zhack_label_repair_002_odd.ksh \
-	functional/cli_root/zhack/zhack_label_repair_003_even.ksh \
-	functional/cli_root/zhack/zhack_label_repair_003_odd.ksh \
+	functional/cli_root/zhack/zhack_label_repair_001.ksh \
+	functional/cli_root/zhack/zhack_label_repair_002.ksh \
+	functional/cli_root/zhack/zhack_label_repair_003.ksh \
+	functional/cli_root/zhack/zhack_label_repair_004.ksh \
 	functional/cli_root/zpool_add/add_nested_replacing_spare.ksh \
 	functional/cli_root/zpool_add/add-o_ashift.ksh \
 	functional/cli_root/zpool_add/add_prop_ashift.ksh \
