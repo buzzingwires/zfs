@@ -60,8 +60,8 @@ static boolean_t g_readonly;
 
 typedef enum {
 	ZHACK_REPAIR_OP_UNKNOWN  = 0,
-	ZHACK_REPAIR_OP_CKSUM    = (1 << 1),
-	ZHACK_REPAIR_OP_UNDETACH = (1 << 2)
+	ZHACK_REPAIR_OP_CKSUM    = (1 << 0),
+	ZHACK_REPAIR_OP_UNDETACH = (1 << 1)
 } zhack_repair_op_t;
 
 static __attribute__((noreturn)) void
