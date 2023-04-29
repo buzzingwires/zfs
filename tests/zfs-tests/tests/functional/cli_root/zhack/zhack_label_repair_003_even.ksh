@@ -22,7 +22,9 @@
 # 5. Corrupt all label checksums on the remaining device
 # 6. Verify that the remaining detached device cannot be imported
 # 7. Verify that it cannot be imported after using zhack label repair -u
+#    to ensure that the -u option will quit on corrupted checksums.
 # 8. Verify that it cannot be imported after using zhack label repair -c
+#    -c should repair the checksums, but not undetach a device.
 # 9. Use zhack label repair -u on device
 # 10. Verify that the detached device can be imported and that data is intact
 

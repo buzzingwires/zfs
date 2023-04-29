@@ -88,6 +88,7 @@ usage(void)
 	    "\n"
 	    "    label repair <device>\n"
 	    "        repair labels of a specified device according to options\n"
+	    "        which may be combined to do their functions in one call\n"
 	    "        -c repair corrupted label checksums\n"
 	    "        -u restore the label on a detached device\n"
 	    "\n"

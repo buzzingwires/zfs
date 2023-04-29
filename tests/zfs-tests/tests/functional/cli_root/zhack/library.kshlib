@@ -36,6 +36,7 @@
 # 3. Corrupt all label checksums in the pool
 # 4. Check that pool cannot be imported
 # 5. Verify that it cannot be imported after using zhack label repair -u
+#    to ensure that the -u option will quit on corrupted checksums.
 # 6. Use zhack label repair -c on device
 # 7. Check that pool can be imported and that data is intact
 #
@@ -47,6 +48,7 @@
 # 4. Remove the non-detached device and its backing file
 # 5. Verify that the remaining detached device cannot be imported
 # 6. Verify that it cannot be imported after using zhack label repair -c
+#    to ensure that the -c option will not undetach a device.
 # 7. Use zhack label repair -u on device
 # 8. Verify that the detached device can be imported and that data is intact
 #
@@ -59,7 +61,9 @@
 # 5. Corrupt all label checksums on the remaining device
 # 6. Verify that the remaining detached device cannot be imported
 # 7. Verify that it cannot be imported after using zhack label repair -u
+#    to ensure that the -u option will quit on corrupted checksums.
 # 8. Verify that it cannot be imported after using zhack label repair -c
+#    -c should repair the checksums, but not undetach a device.
 # 9. Use zhack label repair -u on device
 # 10. Verify that the detached device can be imported and that data is intact
 #

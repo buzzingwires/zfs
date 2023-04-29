@@ -22,6 +22,7 @@
 # 4. Remove the non-detached device and its backing file
 # 5. Verify that the remaining detached device cannot be imported
 # 6. Verify that it cannot be imported after using zhack label repair -c
+#    to ensure that the -c option will not undetach a device.
 # 7. Use zhack label repair -u on device
 # 8. Verify that the detached device can be imported and that data is intact
 

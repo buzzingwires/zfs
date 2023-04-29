@@ -21,6 +21,7 @@
 # 3. Corrupt all label checksums in the pool
 # 4. Check that pool cannot be imported
 # 5. Verify that it cannot be imported after using zhack label repair -u
+#    to ensure that the -u option will quit on corrupted checksums.
 # 6. Use zhack label repair -c on device
 # 7. Check that pool can be imported and that data is intact
 
