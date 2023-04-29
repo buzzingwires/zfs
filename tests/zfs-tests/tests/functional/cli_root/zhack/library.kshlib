@@ -89,8 +89,6 @@ VIRTUAL_MIRROR_DISK=$TEST_BASE_DIR/mirrordisk
 VIRTUAL_DEVICE=
 VIRTUAL_MIRROR_DEVICE=
 
-export MINVDEVSIZE_ODD="$((MINVDEVSIZE + 1))"
-
 function cleanup_lo
 {
 	L_DEVICE="$1"
@@ -121,8 +119,7 @@ function get_size_evenness
 {
 	L_SIZE="$1"
 
-	if [ "$((L_SIZE % 2**18))" -eq 0 ]
-	then
+	if [ "$((L_SIZE % 2**18))" -eq 0 ]; then
 		echo "even"
 	else
 		echo "uneven"
@@ -132,8 +129,7 @@ function get_size_evenness
 RAND_MAX="$((2**15 - 1))"
 function get_devsize
 {
-	if [ "$RANDOM" -gt "$(( RAND_MAX / 2 ))" ]
-	then
+	if [ "$RANDOM" -gt "$(( RAND_MAX / 2 ))" ]; then
 		echo "$(( MINVDEVSIZE + RANDOM ))"
 	else
 		echo "$MINVDEVSIZE"
@@ -291,7 +287,7 @@ function run_test_two
 
 	cleanup
 
-	log_pass "zhack label repair detached recovery test passed with $(get_size_evenness "$L_SIZE") size of $L_SIZE"
+	log_pass "zhack label repair detached test passed with $(get_size_evenness "$L_SIZE") size of $L_SIZE"
 }
 
 function run_test_three
@@ -316,7 +312,7 @@ function run_test_three
 
 	cleanup
 
-	log_pass "zhack label repair corrupted and detached recovery test passed with $(get_size_evenness "$L_SIZE") size of $L_SIZE"
+	log_pass "zhack label repair corruption and detached test passed with $(get_size_evenness "$L_SIZE") size of $L_SIZE"
 }
 
 function run_test_four
@@ -337,5 +333,5 @@ function run_test_four
 
 	cleanup
 
-	log_pass "zhack label repair corrupted and detached recovery test (in one command) passed with $(get_size_evenness "$L_SIZE") size of $L_SIZE."
+	log_pass "zhack label repair corruption and detached single-command test passed with $(get_size_evenness "$L_SIZE") size of $L_SIZE."
 }
