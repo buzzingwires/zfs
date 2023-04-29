@@ -266,7 +266,7 @@ function run_test_one
 
 	cleanup
 
-	log_pass "zhack label repair corruption test passed with size of $L_SIZE"
+	log_pass "zhack label repair corruption test passed with a randomized size of $L_SIZE"
 }
 
 function make_mirrored_pool
@@ -311,7 +311,7 @@ function run_test_two
 
 	cleanup
 
-	log_pass "zhack label repair detached test passed with size of $L_SIZE"
+	log_pass "zhack label repair detached test passed with a randomized size of $L_SIZE"
 }
 
 function run_test_three
@@ -336,7 +336,7 @@ function run_test_three
 
 	cleanup
 
-	log_pass "zhack label repair corruption and detached test passed with size of $L_SIZE"
+	log_pass "zhack label repair corruption and detached test passed with a randomized size of $L_SIZE"
 }
 
 function run_test_four
@@ -357,5 +357,5 @@ function run_test_four
 
 	cleanup
 
-	log_pass "zhack label repair corruption and detached single-command test passed with size of $L_SIZE."
+	log_pass "zhack label repair corruption and detached single-command test passed with a randomized size of $L_SIZE."
 }
