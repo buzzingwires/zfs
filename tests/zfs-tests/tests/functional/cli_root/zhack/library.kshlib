@@ -67,6 +67,18 @@
 # 9. Use zhack label repair -u on device
 # 10. Verify that the detached device can be imported and that data is intact
 #
+# Test four:
+#
+# 1. Create pool on a loopback device with some test data
+# 2. Detach either device from the mirror
+# 3. Export the pool
+# 4. Remove the non-detached device and its backing file
+# 5. Corrupt all label checksums on the remaining device
+# 6. Verify that the remaining detached device cannot be imported
+# 7. Use zhack label repair -cu on device to attempt to fix checksums and
+#    undetach the device in a single operation.
+# 8. Verify that the detached device can be imported and that data is intact
+#
 
 log_assert "Verify zhack label repair <operation> <vdev> will repair label checksums and uberblocks"
 log_onexit cleanup
@@ -294,4 +306,25 @@ function run_test_three
 	cleanup
 
 	log_pass "zhack label repair corrupted and detached recovery test passed with $(get_size_evenness "$L_SIZE") size."
+}
+
+function run_test_four
+{
+	L_SIZE="$1"
+
+	make_mirrored_pool "$L_SIZE"
+
+	setup_dataset
+
+	log_must zpool detach "$TESTPOOL" "$VIRTUAL_MIRROR_DEVICE"
+
+	export_and_cleanup_vdisk
+
+	corrupt_labels "$VIRTUAL_MIRROR_DISK"
+
+	try_import_and_repair true true "-cu" "$VIRTUAL_MIRROR_DEVICE"
+
+	cleanup
+
+	log_pass "zhack label repair corrupted and detached recovery test (in one command) passed with $(get_size_evenness "$L_SIZE") size."
 }
