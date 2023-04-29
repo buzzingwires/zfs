@@ -794,13 +794,12 @@ zhack_repair_one_label(const zhack_repair_op_t op, const int fd,
 		vdev_eck->zec_magic = BSWAP_64(vdev_eck->zec_magic);
 	}
 
-	if ((op & ZHACK_REPAIR_OP_CKSUM) == 0) {
-		if (zhack_repair_test_cksum(byteswap, vdev_data, vdev_eck,
-		    vdev_phys_offset, l) != 0) {
-			(void) fprintf(stderr, "It would appear checksums are "
-			    "corrupted. Try zhack repair label -c <device>\n");
-			return;
-		}
+	if ((op & ZHACK_REPAIR_OP_CKSUM) == 0 &&
+	    zhack_repair_test_cksum(byteswap, vdev_data, vdev_eck,
+	    vdev_phys_offset, l) != 0) {
+		(void) fprintf(stderr, "It would appear checksums are "
+		    "corrupted. Try zhack repair label -c <device>\n");
+		return;
 	}
 
 	err = nvlist_unpack(vl->vl_vdev_phys.vp_nvlist,
