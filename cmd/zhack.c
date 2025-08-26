@@ -540,7 +540,7 @@ zhack_repair_get_byteswap(const zio_eck_t* vdev_eck, const int l, int* byteswap)
 		(void) fprintf(stderr, "error: label %d: "
 		    "Expected the an nvlist checksum magic number of 0x%" PRIx64 " or 0x%" PRIx64 " but instead got 0x%" PRIx64
 		    "\n",
-		    l, ZEC_MAGIC, BSWAP_64((uint64_t)ZEC_MAGIC));
+		    l, (uint64_t)ZEC_MAGIC, BSWAP_64((uint64_t)ZEC_MAGIC), vdev_eck->zec_magic);
 		return (1);
 	}
 	return (0);
@@ -759,7 +759,7 @@ zhack_repair_test_cksum(const int byteswap, void *vdev_data,
 }
 
 static int
-zhack_repair_unpack_cfg(const vdev_label_t* vl, const int l, nvlist_t** cfg)
+zhack_repair_unpack_cfg(vdev_label_t* vl, const int l, nvlist_t** cfg)
 {
 	const char *cfg_keys[] = { ZPOOL_CONFIG_VERSION,
 	    ZPOOL_CONFIG_POOL_STATE, ZPOOL_CONFIG_GUID };
@@ -773,7 +773,7 @@ zhack_repair_unpack_cfg(const vdev_label_t* vl, const int l, nvlist_t** cfg)
 		return (err);
 	}
 
-	for (int i = 0; i < cfg_keys_len; i++) {
+	for (int i = 0; i < ARRAY_SIZE(cfg_keys); i++) {
 		uint64_t val;
 		err = nvlist_lookup_uint64(*cfg, cfg_keys[i], &val);
 		if (err) {
