@@ -33,13 +33,15 @@
 # Test one:
 #
 # 1. Create pool on a loopback device with some test data
-# 2. Export the pool.
-# 3. Corrupt all label checksums in the pool
-# 4. Check that pool cannot be imported
-# 5. Verify that it cannot be imported after using zhack label repair -u
-#    to ensure that the -u option will quit on corrupted checksums.
-# 6. Use zhack label repair -c on device
-# 7. Check that pool can be imported and that data is intact
+# 2. Create a copy of the backing file while the pool is still imported
+# 3. Export the pool
+# 4. Replace the backing file with its non-cleanly exported copy
+# 5. Corrupt all label checksums in the pool
+# 6. Check that pool cannot be imported
+# 7. Verify that it cannot be imported after using zhack label repair -u
+#    to ensure that the -u option will quit on corrupted checksums
+# 8. Use zhack label repair -c on device
+# 9. Check that pool can be imported and that data is intact
 #
 # Test two:
 #
@@ -90,6 +92,7 @@ LABEL_CKSUM_SIZE="32"
 LABEL_CKSUM_START="$(( LABEL_NVLIST_END - LABEL_CKSUM_SIZE ))"
 
 VIRTUAL_DISK=$TEST_BASE_DIR/disk
+VIRTUAL_DISK_COPY=$TEST_BASE_DIR/diskcopy
 VIRTUAL_MIRROR_DISK=$TEST_BASE_DIR/mirrordisk
 
 VIRTUAL_DEVICE=
@@ -228,6 +231,21 @@ function try_import_and_repair
 	check_dataset "$L_IMPORT_SHOULD_SUCCEED"
 }
 
+function setup_lo
+{
+	L_BACKFILE="$1"
+
+	l_devname=
+	if is_linux; then
+		l_devname="$(losetup -f "$L_BACKFILE" --show)"
+	elif is_freebsd; then
+		l_devname=/dev/"$(mdconfig -a -t vnode -f "$L_BACKFILE")"
+	else
+		l_devname="$(lofiadm -a "$L_BACKFILE")"
+	fi
+	echo "$l_devname"
+}
+
 function prepare_vdev
 {
 	L_SIZE="$1"
@@ -235,13 +253,7 @@ function prepare_vdev
 
 	l_devname=
 	if truncate -s "$L_SIZE" "$L_BACKFILE"; then
-		if is_linux; then
-			l_devname="$(losetup -f "$L_BACKFILE" --show)"
-		elif is_freebsd; then
-			l_devname=/dev/"$(mdconfig -a -t vnode -f "$L_BACKFILE")"
-		else
-			l_devname="$(lofiadm -a "$L_BACKFILE")"
-		fi
+		l_devname="$(setup_lo "$L_BACKFILE")"
 	fi
 	echo "$l_devname"
 }
@@ -257,7 +269,18 @@ function run_test_one
 
 	setup_dataset
 
+	log_must cp "$VIRTUAL_DISK" "$VIRTUAL_DISK_COPY"
+
 	log_must zpool export "$TESTPOOL"
+
+	cleanup_lo "$VIRTUAL_DEVICE"
+
+	log_must rm "$VIRTUAL_DISK"
+
+	log_must cp "$VIRTUAL_DISK_COPY" "$VIRTUAL_DISK"
+
+	VIRTUAL_DEVICE="$(setup_lo "$VIRTUAL_DISK")"
+	log_must test -e "$VIRTUAL_DEVICE"
 
 	corrupt_labels "$L_SIZE" "$VIRTUAL_DISK"
 
