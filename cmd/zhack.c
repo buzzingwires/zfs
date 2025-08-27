@@ -530,7 +530,7 @@ zhack_repair_read_label(const int fd, vdev_label_t *vl,
 }
 
 static int
-zhack_repair_get_byteswap(const zio_eck_t* vdev_eck, const int l, int* byteswap)
+zhack_repair_get_byteswap(const zio_eck_t *vdev_eck, const int l, int *byteswap)
 {
 	if (vdev_eck->zec_magic == ZEC_MAGIC) {
 		*byteswap = B_FALSE;
@@ -538,9 +538,9 @@ zhack_repair_get_byteswap(const zio_eck_t* vdev_eck, const int l, int* byteswap)
 		*byteswap = B_TRUE;
 	} else {
 		(void) fprintf(stderr, "error: label %d: "
-		    "Expected the an nvlist checksum magic number of 0x%" PRIx64 " or 0x%" PRIx64 " but instead got 0x%" PRIx64
-		    "\n",
-		    l, (uint64_t)ZEC_MAGIC, BSWAP_64((uint64_t)ZEC_MAGIC), vdev_eck->zec_magic);
+		    "Expected the nvlist checksum magic number but instead got "
+		    "0x%" PRIx64 "\n",
+		    l, vdev_eck->zec_magic);
 		return (1);
 	}
 	return (0);
@@ -572,7 +572,7 @@ zhack_repair_calc_cksum(const int byteswap, void *data, const uint64_t offset,
 }
 
 static int
-zhack_repair_get_ashift(nvlist_t *cfg, const int l, uint64_t* ashift)
+zhack_repair_get_ashift(nvlist_t *cfg, const int l, uint64_t *ashift)
 {
 	int err;
 	nvlist_t *vdev_tree_cfg;
@@ -759,7 +759,7 @@ zhack_repair_test_cksum(const int byteswap, void *vdev_data,
 }
 
 static int
-zhack_repair_unpack_cfg(vdev_label_t* vl, const int l, nvlist_t** cfg)
+zhack_repair_unpack_cfg(vdev_label_t *vl, const int l, nvlist_t **cfg)
 {
 	const char *cfg_keys[] = { ZPOOL_CONFIG_VERSION,
 	    ZPOOL_CONFIG_POOL_STATE, ZPOOL_CONFIG_GUID };
@@ -840,8 +840,8 @@ zhack_repair_one_label(const zhack_repair_op_t op, const int fd,
 			    "error: label %d: UB TXG of 0 expected, but got %"
 			    PRIu64 "\n",
 			    l, ub->ub_txg);
-			(void) fprintf(stderr, "It would appear the device was not "
-			    "properly detached.\n");
+			(void) fprintf(stderr, "It would appear the device was "
+			    "not properly detached.\n");
 			return;
 		}
 
