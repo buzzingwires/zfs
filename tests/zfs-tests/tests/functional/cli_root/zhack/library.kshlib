@@ -275,6 +275,8 @@ function run_test_one
 
 	cleanup_lo "$VIRTUAL_DEVICE"
 
+	log_must rm "$VIRTUAL_DISK"
+
 	log_must mv "$VIRTUAL_DISK_COPY" "$VIRTUAL_DISK"
 
 	VIRTUAL_DEVICE="$(setup_lo "$VIRTUAL_DISK")"
