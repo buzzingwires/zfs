@@ -18,8 +18,9 @@
 # Strategy:
 #
 # 1. Create pool on a loopback device with some test data
-# 2. Checksum repair should work with a valid TXG. Repeatedly sync the pool
-#    so there are enough transactions for every uberblock to have a TXG
+# 2. Checksum repair should work with a valid TXG. Repeatedly write and
+#    sync the pool so there are enough transactions for every uberblock
+#    to have a TXG
 # 3. Export the pool.
 # 4. Corrupt all label checksums in the pool
 # 5. Check that pool cannot be imported
