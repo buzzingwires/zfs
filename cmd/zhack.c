@@ -838,8 +838,7 @@ zhack_repair_one_label(const zhack_repair_op_t op, const int fd,
 		if (ub->ub_txg != 0) {
 			(void) fprintf(stderr,
 			    "error: label %d: UB TXG of 0 expected, but got %"
-			    PRIu64 "\n",
-			    l, ub->ub_txg);
+			    PRIu64 "\n", l, ub->ub_txg);
 			(void) fprintf(stderr, "It would appear the device was "
 			    "not properly detached.\n");
 			return;

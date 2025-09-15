@@ -179,7 +179,7 @@ function force_transactions
 	for ((i=0; i < L_TIMES; i++))
 	do
 		touch "$TESTDIR"/"test" || return $?
-		zpool sync "$TESTPOOL" || return $?
+		zpool sync -f "$TESTPOOL" || return $?
 	done
 	return 0
 }
@@ -272,7 +272,7 @@ function run_test_one
 	setup_dataset
 
 	# Force 128 extra transactions to ensure all uberblocks are assigned a TXG
-	log_must force_transactions 128
+	log_must force_transactions 256
 
 	log_must zpool export "$TESTPOOL"
 
